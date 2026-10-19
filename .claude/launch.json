@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "AI Project Hub",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "server/index.ts", "--production"],
+      "port": 4317
+    },
+    {
+      "name": "AI Project Hub verification",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "server/index.ts", "--production", "--port", "4318", "--data-dir", ".local/verification"],
+      "port": 4318
+    }
+  ]
+}

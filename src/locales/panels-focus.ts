@@ -1,0 +1,48 @@
+import type { MessageCatalog } from '../../shared/i18n';
+
+const en = {
+  title: 'Focus on what comes next',
+  subtitle: 'Find your direction in the context you already have.',
+  taskSource: 'From an unfinished task',
+  nextActionSource: 'From a manually recorded next action',
+  why: 'Why this recommendation?',
+  score: 'Score {score}',
+  emptyTitle: 'You decide the next step.',
+  emptyDescription: 'Add a next action or a task to an active or planning project to see what is worth doing first.',
+  awaitingAction: 'Waiting for your first action',
+  ranking: 'How are recommendations ranked?',
+  localRules: 'These are explainable local rules, not AI predictions.',
+  priorityRule: 'Project and task priorities are compared first.',
+  activeRule: 'Active projects and in-progress tasks receive extra points.',
+  excludedProjects: 'Paused, completed, and archived projects are excluded.',
+  excludedTasks: 'Blocked and backlog tasks are not actionable next steps.',
+  staleRule: 'An old commit is a reminder only; it does not increase the ranking.',
+  explanation: 'Each recommendation shows its source and scoring reasons.',
+  contextTitle: 'Less time catching up. More time moving forward.',
+  contextDescription: 'Before you stop, note where you left off. It is the best starting point for next time.',
+} as const;
+
+export const focusMessages: MessageCatalog<keyof typeof en> = {
+  en,
+  'zh-TW': {
+    title: '接下來，專注這裡',
+    subtitle: '從已有的脈絡，找回工作方向。',
+    taskSource: '來自未完成任務',
+    nextActionSource: '來自手動記錄的下一步',
+    why: '為什麼推薦？',
+    score: '分數 {score}',
+    emptyTitle: '下一步，從您決定。',
+    emptyDescription: '為進行中或規劃中的專案寫下一步行動，或加入待辦任務，這裡就會整理出值得先做的事。',
+    awaitingAction: '等待第一個行動',
+    ranking: '建議如何排序？',
+    localRules: '這是可解釋的本機規則，不是 AI 預測。',
+    priorityRule: '先比較專案與任務的優先順序。',
+    activeRule: '進行中的專案與任務會加分。',
+    excludedProjects: '暫停、已完成與已封存的專案不列入推薦。',
+    excludedTasks: '受阻與待規劃任務不當作可執行下一步。',
+    staleRule: '久未 commit 僅提醒，不會提高排序。',
+    explanation: '每個建議都會列出來源與計分原因。',
+    contextTitle: '少一點重新理解，多一點接續工作。',
+    contextDescription: '收工前留下一句「做到哪裡」，就是下一次最好的起點。',
+  },
+};

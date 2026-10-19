@@ -1,0 +1,206 @@
+# AI Project Hub
+
+**English** · [繁體中文](README.zh-TW.md)
+
+A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, and read-only Git activity in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
+
+**The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
+
+## What you can do
+
+- **Find your projects:** preview a folder scan and choose which projects to add, without moving files or running project code.
+- **Pick up where you left off:** keep a next action, priorities, tasks, technical decisions, and project memory together.
+- **See Git facts:** inspect branches, commits, and working-tree snapshots without Hub fetching, staging, or committing.
+- **Hand off to an AI app:** review and copy context, optionally open the desktop app, and manually paste back a checkpoint for approval.
+- **Choose your interface language:** English by default, with a top-bar switch to 繁體中文.
+- **Optionally connect your own desktops:** share selected summaries and exchange messages through your own Supabase backend. This is off by default, not full-workspace sync.
+
+## Get the Windows app
+
+Public **GitHub Releases** are the distribution channel. This source checkout has no GitHub owner/repository configured yet; it does not claim a live download URL. A maintainer must complete [release setup](#maintainer-release-setup) and publish a release before downloads and in-app update checks are available.
+
+When a release is available, open this repository's **Releases** page and expand **Assets**. Download an application `.exe`, **not** GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives.
+
+| Release asset | Use |
+| --- | --- |
+| `AI-Project-Hub-<version>-Setup-x64.exe` | Install for your Windows user, with desktop and Start menu shortcuts. Recommended for installed-app updates. |
+| `AI-Project-Hub-<version>-portable-x64.exe` | Run without an installer. Updates are downloaded manually. |
+
+`<version>` is a placeholder for the published version, not a promised release. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
+
+**Builds are currently unsigned.** Windows SmartScreen, Smart App Control, or organizational policy may warn or block them. Verify the publisher's release location and any available verification information. Do not disable Windows security protections to run the app; if policy blocks it, consult your administrator or wait for an approved distribution.
+
+Git is needed only for Git tracking; projects, memory, tasks, and text handoffs still work without it. VS Code, Claude Desktop, ChatGPT Desktop, and advanced CLI tools are optional external apps. Hub does not install them for you.
+
+## First run
+
+1. **Choose a language.** Use **English / 繁體中文** in the top bar. The preference is saved in the local SQLite database and survives restarts. It changes interface text, not your project names, notes, tasks, or other user content.
+2. **Add projects.** Select a local development folder, preview the scan results, and choose what to add.
+3. **Set a next action.** Record a status and priority, or add a task.
+4. **Save a checkpoint.** Use project memory for the current state, decisions, and known issues.
+5. **Continue work.** The workbench combines recorded context with Git facts and explainable suggestions. Commit counts are not completion percentages.
+
+Your normal workspace is not seeded with demo projects. Back up existing data before upgrades, and do not open an upgraded database with an older app version.
+
+## AI handoffs: copy, paste, review
+
+### Send context
+
+1. Open a project's AI handoff view and choose Claude Desktop or ChatGPT Desktop.
+2. Preview the context assembled from saved Hub data.
+3. Copy it, or copy it and ask Windows to open the selected app.
+4. **Paste and send it yourself.** Attach any needed files using the chat app's own features.
+
+Opening an app does **not** select a conversation, transmit context, read your project folder, or grant file access. Hub uses registered Windows app identities; it does not depend on a desktop app's CLI or an undocumented conversation URL. If launching is unavailable, copying still works.
+
+### Bring back a checkpoint
+
+1. The context includes a complete JSON checkpoint template. Ask the AI to update it after the work.
+2. Paste **plain JSON or one complete JSON code block** into Hub's checkpoint input.
+3. Preview the import differences, compare each field, and explicitly confirm.
+4. Only the **nine project-memory fields and `nextAction`** are updated. Import does not change source code, paths, lifecycle status, or tasks, and does not execute command text.
+
+Pasting alone never saves the checkpoint. Editing the pasted text invalidates its preview; confirmation rechecks the project ID, schema, text fingerprint, and local revision. Remove surrounding AI commentary rather than importing a partial JSON fragment. A valid schema is not proof that an AI's claims are correct—review the content.
+
+### Advanced CLI and file exchange
+
+Claude Code / Codex CLI and repository-file handoffs remain under the advanced options. The first file export creates `.ai-project-hub/state.json`; later exports add timestamped Markdown snapshots and **do not overwrite an existing `state.json`**. That file does not automatically track later Hub edits. Preview it again before importing.
+
+Hub does not create or modify `AGENTS.md` or `CLAUDE.md`. Exported files may be tracked by Git; add them to your project's ignore rules if you do not want to commit them. See [desktop integration details](docs/INTEGRATIONS.md).
+
+## Updates
+
+Updates are **user initiated**, not unattended upgrades. In a release configured for GitHub updates, use the update controls in Settings.
+
+| How you run Hub | Update path |
+| --- | --- |
+| Installed NSIS version, default data directory | Manually check for an update, choose to download it, then explicitly choose to restart and install. Save your work and back up first. |
+| Portable executable | Open the configured Releases page, download the newer portable `.exe`, close Hub, and replace the old executable. |
+| Custom data directory (`HUB_DATA_DIR` or `--data-dir`) | Use the manual release-download/install path, then launch with the same data-directory setting. In-app restart-to-install is not offered for this mode. |
+| Unconfigured source build | No GitHub release location is guessed. A maintainer must configure it before update checks or release links can work. |
+
+An installed-app update needs the matching installer and update metadata in the published release. A source archive or portable executable alone is not an installed-app update. Keep a backup and avoid running different Hub versions against the same database.
+
+## Local data and backups
+
+The default Windows database is:
+
+```text
+%LOCALAPPDATA%\AIProjectHub\hub.sqlite
+```
+
+- SQLite stores projects, tasks, memory, settings (including language), and Git snapshots. Desktop window settings and the Chromium profile live in `desktop-profile` under the same data directory.
+- Set `HUB_DATA_DIR` or pass `--data-dir` to use a separate data directory. Keep using that setting after a manual update; do not point different versions at the same live database.
+- **Close all Hub windows and any web-mode processes before backing up.** Copy the whole data directory. Do not copy only a live `hub.sqlite` while SQLite may still be using WAL files.
+- Closing Hub stops its internal service and device polling; there is no boot-time background agent. The desktop app warns about unsaved memory or checkpoint drafts.
+- Git refresh defaults to 60 seconds and can be set to `0` in Settings to disable it. No tracking happens while Hub is closed.
+- Removing a project deletes Hub records and related tasks, not the original folder, Git repository, or exported files.
+- Ordinary database rows—including messages and remote caches—are **not encrypted**. Their protection depends on Windows permissions and disk encryption. Long-lived device credentials are separately protected with Windows user-scoped secure storage.
+
+Copying context into a cloud chat app or enabling selected-field sharing is an intentional transfer of data. Review it for secrets first. A data-directory backup can contain private information; do not upload it in an issue report.
+
+## Optional: connect your own desktops
+
+The Supabase integration is **disabled by default**. It provides selected project summaries, messages, and reviewable change requests between paired desktop apps—not file sync, a shared SQLite database, a mobile app, or a remote shell. Every computer remains responsible for its own local projects.
+
+1. Set up your own Supabase project using the supplied SQL and create the first short-lived pairing code.
+2. In desktop settings, enter the Project URL, a **public publishable/anon key**, a device name, and the pairing code. Never enter a `service_role` or secret administrative key.
+3. Invite another desktop using a one-time pairing code.
+4. Select which projects and memory fields to share, preview them, and confirm. Nothing is shared by default. Selected summaries are visible to all currently paired devices and devices paired later.
+5. Review incoming requests locally before accepting or rejecting them. Only confirmation on the owning computer can change the allowed memory fields or next action.
+
+Messages are persisted and retried when the app is open and connected. **Delivered does not mean applied.** Applying a request requires fresh source authorization and a matching local revision; an old offline authorization is not sufficient. Closing the app stops sending and receiving; the backend can retain pending messages.
+
+**This is not end-to-end encrypted.** The Supabase administrator can read shared content and messages. Pausing sync does not revoke devices or erase cloud data, and revocation cannot retrieve copies already saved elsewhere. Supabase's free tier has quotas and inactivity limits.
+
+See [multi-device setup and limitations](docs/MULTI-DEVICE.md) before enabling it. Local SQL/HTTP tests are not proof that your live Supabase deployment or two physical Windows computers have been verified. All local features remain available without cloud setup.
+
+## What the workbench knows
+
+| Source | What it shows | Boundary |
+| --- | --- | --- |
+| Observed facts | Branch, commits, working tree, observation time | A recent commit is not necessarily the last time you worked. |
+| Recorded state | Manually entered or reviewed/imported memory, tasks, and status | Git activity never automatically marks a project complete. |
+| Rule-based suggestions | Explicit priorities and reasons for task ordering | These are not AI inferences or completion percentages. |
+
+If a refresh fails, Hub retains the previous snapshot and shows an error. Git queries disable clean/process filters to avoid starting custom programs; transformed files such as Git LFS files may conservatively appear modified. Hub does not recurse into submodules or run fetch, checkout, stage, or commit operations.
+
+## Build from source
+
+Use **Windows x64, Node.js 24 LTS, and npm**. Git is also needed for Git-dependent tests and fixtures. These are development requirements, not requirements for people using a released `.exe`.
+
+Run the following from the repository root (the folder containing `package.json`):
+
+```sh
+npm install --ignore-scripts
+npm run pack:desktop
+npm start
+```
+
+The packaging tools download the official Electron/NSIS tooling; allow only downloads and execution permitted by your local policy. `pack:desktop` builds `release/win-unpacked/`. **`npm start` only launches that previously packed app**; it does not build or run a development server. `Start-Hub.cmd` has the same packaged-app purpose. Keep the entire `win-unpacked` folder together, not just `AI Project Hub.exe`.
+
+### Checks
+
+```sh
+npm run verify
+npm run test:desktop
+```
+
+`verify` runs type checking, unit tests, and the frontend build. `test:desktop` requires a fresh `pack:desktop` first and exercises the packaged app using isolated data. Native file-dialog selections are simulated; subsequent IPC, database, and file-save flows are real. These tests do not send messages to Claude/ChatGPT or use your real projects.
+
+`npm run test:ui` **only creates UI fixtures**, including sample repositories and `.local/verification/hub.sqlite`. It is not a UI test runner and does not launch or verify the app.
+
+### Optional web development mode
+
+```sh
+npm run dev
+```
+
+Or build and serve the frontend:
+
+```sh
+npm run build
+npm run start:web
+```
+
+Web mode defaults to `http://127.0.0.1:4317` and requires its terminal to stay open. It is a development/fallback option, not required for desktop use. The desktop app uses a random internal port and a per-launch secret held by its main process; you do not manually open that service in a browser.
+
+## Maintainer release setup
+
+The source files are at the **repository root**, alongside this README and `package.json`. Review what you publish: keep `.local/`, private databases, `.env` files, credentials, personal screenshots, and generated executables out of version control. Executables belong in Release assets.
+
+1. Configure the real **public GitHub repository** in `release.config.cjs`. The checked-in owner/repo values are intentionally empty; replace them with your own values, not these placeholders:
+
+   ```js
+   module.exports = {
+     github: {
+       owner: '<GITHUB_OWNER>',
+       repo: '<GITHUB_REPOSITORY>',
+     },
+   };
+   ```
+
+2. Set the intended package version and complete the checks above. Then build the release artifacts:
+
+   ```sh
+   npm run dist:desktop
+   ```
+
+   Distribution builds require valid owner/repo values. The release build uses **`--publish never`**: it creates local artifacts and does not create a GitHub repository, upload files, or publish a release.
+
+3. Create the corresponding public GitHub Release. Upload the **NSIS Setup `.exe`, `latest.yml`, and the installer's `.exe.blockmap` from the same build** in `release/`. Optionally add the portable `.exe` and release notes. Do not substitute GitHub's source archives for application assets.
+4. Verify the published download and installed-app update flow on Windows before announcing availability. Local tests alone do not validate a live release. No signing certificate, cloud account, or publishing credential is supplied by this project.
+
+## Contributing and reporting problems
+
+Focused fixes and documentation improvements are welcome. Include the app version, Windows version, reproduction steps, and redacted diagnostics in bug reports. Prefer isolated sample data; never attach your private database, pairing codes, credentials, or unredacted screenshots.
+
+For a security issue, use a private reporting channel if the repository has one enabled. Otherwise ask the maintainer for a private contact before sharing sensitive details publicly.
+
+## License and further reading
+
+AI Project Hub is open source under the [MIT License](LICENSE), copyright 2026 AI Project Hub. Third-party dependencies retain their own licenses; distributions include third-party notices.
+
+The detailed technical documents below are currently in Traditional Chinese. Verification records describe specific past checks, not a guarantee for every build or deployment.
+
+[Architecture](docs/ARCHITECTURE.md) · [Desktop integrations](docs/INTEGRATIONS.md) · [Multi-device setup](docs/MULTI-DEVICE.md) · [Multi-device verification record](docs/MULTI-DEVICE-VERIFICATION.md) · [Roadmap](docs/ROADMAP.md) · [Desktop verification record](docs/DESKTOP-VERIFICATION.md)

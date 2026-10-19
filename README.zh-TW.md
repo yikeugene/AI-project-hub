@@ -2,6 +2,8 @@
 
 [English](README.md) · **繁體中文**
 
+**下載 Windows x64 v0.3.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe)
+
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint 與唯讀 Git 活動，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
@@ -17,16 +19,18 @@
 
 ## 取得 Windows 桌面版
 
-軟體透過公開的 **GitHub Releases** 發行。目前這份原始碼尚未設定 GitHub 擁有者／儲存庫，不代表已有可用的公開下載網址。維護者必須先完成[發行設定](#維護者發行設定)並發布版本，才會有下載檔與可用的程式內更新檢查。
+透過下方連結直接下載 **v0.3.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
-有正式發行檔後，請開啟本儲存庫的 **Releases** 頁面，展開 **Assets**。下載應用程式的 `.exe`，**不是** GitHub 自動產生的 **Source code (zip)** 或 **Source code (tar.gz)** 原始碼壓縮檔。
+執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
-| 發行檔 | 用途 |
+| 下載 | 用途 |
 | --- | --- |
-| `AI-Project-Hub-<version>-Setup-x64.exe` | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。需要安裝版更新功能時建議使用。 |
-| `AI-Project-Hub-<version>-portable-x64.exe` | 免安裝，直接執行。更新時需手動下載。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-`<version>` 是實際發行版本的預留位置，不代表已承諾發布某一版本。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.3.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/SHA256SUMS.txt)
+
+v0.3.0 需手動下載更新，這一版尚未設定程式內更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
 **目前建置尚未做程式碼簽署。** Windows SmartScreen、Smart App Control 或組織政策可能提醒或阻擋。請確認發布者的發行位置及可用的驗證資訊，不要為了執行程式停用 Windows 安全防護；若遭政策阻擋，請洽管理員或等待經核准的發行方式。
 
@@ -70,12 +74,12 @@ Hub 不建立或修改 `AGENTS.md`／`CLAUDE.md`。匯出的檔案可能被 Git 
 
 ## 更新
 
-更新由**使用者主動操作**，不是無人值守升級。已設定 GitHub 更新來源的發行版可使用設定畫面中的更新控制項。
+更新由**使用者主動操作**，不是無人值守升級。**v0.3.0** 請從 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest) 手動下載新版，關閉 App 後再安裝或替換。程式內更新控制項需要使用已設定 GitHub 更新來源的建置。
 
 | 執行方式 | 更新方式 |
 | --- | --- |
-| NSIS 安裝版，使用預設資料目錄 | 手動檢查更新、選擇下載，再明確選擇重新啟動並安裝。請先儲存工作並備份。 |
-| 免安裝執行檔 | 開啟已設定的 Releases 頁面，下載較新的 portable `.exe`，關閉 Hub 後更換舊執行檔。 |
+| NSIS 安裝版，使用預設資料目錄 | v0.3.0 需手動下載並執行新版安裝程式。已設定 GitHub 更新來源的建置才可提供手動檢查、下載及明確確認後重新啟動安裝。請先儲存工作並備份。 |
+| 免安裝執行檔 | 開啟 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)，下載較新的 portable `.exe`，關閉 Hub 後更換舊執行檔。 |
 | 自訂資料目錄（`HUB_DATA_DIR` 或 `--data-dir`） | 手動下載／安裝發行檔，之後用相同的資料目錄設定啟動。此模式不提供程式內重新啟動安裝。 |
 | 尚未設定發行來源的原始碼建置 | 不猜測 GitHub 發行位置。維護者設定完成後，更新檢查或發行連結才可使用。 |
 

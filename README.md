@@ -2,6 +2,8 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
+**Download v0.3.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe)
+
 A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, and read-only Git activity in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
 
 **The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
@@ -17,16 +19,18 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 ## Get the Windows app
 
-Public **GitHub Releases** are the distribution channel. This source checkout has no GitHub owner/repository configured yet; it does not claim a live download URL. A maintainer must complete [release setup](#maintainer-release-setup) and publish a release before downloads and in-app update checks are available.
+Download **v0.3.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
 
-When a release is available, open this repository's **Releases** page and expand **Assets**. Download an application `.exe`, **not** GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives.
+Run the installer to install for your Windows user, or download and double-click the portable executable. GitHub's **Source code (zip)** and **Source code (tar.gz)** archives are for developers.
 
-| Release asset | Use |
+| Download | Use |
 | --- | --- |
-| `AI-Project-Hub-<version>-Setup-x64.exe` | Install for your Windows user, with desktop and Start menu shortcuts. Recommended for installed-app updates. |
-| `AI-Project-Hub-<version>-portable-x64.exe` | Run without an installer. Updates are downloaded manually. |
+| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
+| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe) | Run directly without an installer. |
 
-`<version>` is a placeholder for the published version, not a promised release. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
+[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.3.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/SHA256SUMS.txt)
+
+Version 0.3.0 uses manual downloads for updates; its in-app updater is not configured. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
 
 **Builds are currently unsigned.** Windows SmartScreen, Smart App Control, or organizational policy may warn or block them. Verify the publisher's release location and any available verification information. Do not disable Windows security protections to run the app; if policy blocks it, consult your administrator or wait for an approved distribution.
 
@@ -70,12 +74,12 @@ Hub does not create or modify `AGENTS.md` or `CLAUDE.md`. Exported files may be 
 
 ## Updates
 
-Updates are **user initiated**, not unattended upgrades. In a release configured for GitHub updates, use the update controls in Settings.
+Updates are **user initiated**, not unattended upgrades. For **v0.3.0**, download updates from [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest) and close the app before installing or replacing it. In-app update controls require a build with a configured GitHub update source.
 
 | How you run Hub | Update path |
 | --- | --- |
-| Installed NSIS version, default data directory | Manually check for an update, choose to download it, then explicitly choose to restart and install. Save your work and back up first. |
-| Portable executable | Open the configured Releases page, download the newer portable `.exe`, close Hub, and replace the old executable. |
+| Installed NSIS version, default data directory | In v0.3.0, download and run the newer installer manually. A build configured for GitHub updates can offer a manual check, download, and explicit restart-to-install. Save your work and back up first. |
+| Portable executable | Open [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest), download the newer portable `.exe`, close Hub, and replace the old executable. |
 | Custom data directory (`HUB_DATA_DIR` or `--data-dir`) | Use the manual release-download/install path, then launch with the same data-directory setting. In-app restart-to-install is not offered for this mode. |
 | Unconfigured source build | No GitHub release location is guessed. A maintainer must configure it before update checks or release links can work. |
 

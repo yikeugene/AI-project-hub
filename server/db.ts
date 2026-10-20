@@ -4,11 +4,11 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { EMPTY_MEMORY } from '../shared/types.js';
 import { normalizeLocale } from '../shared/i18n.js';
-import type { GitSnapshot, Project, ProjectMemory, Settings, Task } from '../shared/types.js';
-import { appError } from './validation.js';
+import type { GitSnapshot, Project, ProjectMemory, Settings, Task, WorkspaceFocus } from '../shared/types.js';
+import { appError, workspaceFocusSchema, wrapUpProjectSchema } from './validation.js';
 import { DEVICE_MIGRATION, MULTI_GROUP_MIGRATION } from './device-schema.js';
 import { GOVERNANCE_MIGRATION } from './governance-schema.js';
-import type { CreateProjectInput, UpdateProjectInput, CreateTaskInput, UpdateTaskInput } from './validation.js';
+import type { CreateProjectInput, UpdateProjectInput, WrapUpProjectInput, CreateTaskInput, UpdateTaskInput } from './validation.js';
 
 type Row = Record<string, string | number | null>;
 const now = () => new Date().toISOString();
@@ -21,7 +21,7 @@ function toProject(r: Row): Project {
     stage: r.stage as string, nextAction: r.next_action as string,
     memory: JSON.parse(r.memory_json as string), revision: Number(r.revision),
     createdAt: r.created_at as string, updatedAt: r.updated_at as string,
-    memoryUpdatedAt: r.memory_updated_at as string | null,
+    memoryUpdatedAt: r.memory_updated_at as string | null, checkpointAt: r.checkpoint_at as string | null,
     git: r.git_json ? JSON.parse(r.git_json as string) : null,
     gitError: r.git_error as string | null, lastCheckedAt: r.last_checked_at as string | null,
   };
@@ -39,7 +39,7 @@ export class Store {
     this.db = new DatabaseSync(filename);
     this.db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;');
     const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-    if (version > 4) { this.db.close(); throw appError(400, 'database.newer'); }
+    if (version > 5) { this.db.close(); throw appError(400, 'database.newer'); }
     try {
     if (version === 0) this.db.exec(`
       BEGIN;
@@ -68,6 +68,15 @@ export class Store {
     if (version < 2) this.transaction(() => this.db.exec(DEVICE_MIGRATION));
     if (version < 3) this.transaction(() => this.db.exec(GOVERNANCE_MIGRATION));
     if (version < 4) this.transaction(() => this.db.exec(MULTI_GROUP_MIGRATION));
+    if (version < 5) this.transaction(() => this.db.exec(`
+      ALTER TABLE projects ADD COLUMN checkpoint_at TEXT;
+      CREATE TABLE workspace_focus (
+        id INTEGER PRIMARY KEY CHECK(id = 1), project_ids_json TEXT NOT NULL DEFAULT '[]',
+        revision INTEGER NOT NULL DEFAULT 1
+      );
+      INSERT INTO workspace_focus(id) VALUES(1);
+      PRAGMA user_version = 5;
+    `));
     } catch (error) {
       try { this.db.exec('ROLLBACK'); } catch { /* A failed migration may already have rolled back. */ }
       this.db.close(); throw error;
@@ -105,23 +114,45 @@ export class Store {
     const old = this.getProject(id);
     this.checkRevision(old.revision, input.revision);
     const p = { ...old, ...input };
-    const result = this.db.prepare(`UPDATE projects SET name=?,description=?,category=?,status=?,priority=?,stage=?,next_action=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?`)
-      .run(p.name, p.description, p.category, p.status, p.priority, p.stage, p.nextAction, now(), id, input.revision);
+    const result = this.db.prepare(`UPDATE projects SET name=?,description=?,category=?,status=?,priority=?,stage=?,
+      checkpoint_at=CASE WHEN next_action IS NOT ? THEN NULL ELSE checkpoint_at END,
+      next_action=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?`)
+      .run(p.name, p.description, p.category, p.status, p.priority, p.stage, p.nextAction, p.nextAction, now(), id, input.revision);
     this.requireChange(result.changes);
     return this.getProject(id);
   }
   saveMemory(id: string, revision: number, memory: ProjectMemory, nextAction?: string): Project {
     const project = this.getProject(id);
     this.checkRevision(project.revision, revision);
-    const at = now();
-    const result = this.db.prepare('UPDATE projects SET memory_json=?,next_action=?,memory_updated_at=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?')
-      .run(JSON.stringify(memory), nextAction ?? project.nextAction, at, at, id, revision);
+    const at = now(), action = nextAction ?? project.nextAction;
+    // Keep invalidation in this UPDATE: device proposal acceptance already owns a transaction.
+    const result = this.db.prepare(`UPDATE projects SET
+      checkpoint_at=CASE WHEN json_extract(memory_json,'$.status') IS NOT ? OR json_extract(memory_json,'$.blockers') IS NOT ? OR next_action IS NOT ? THEN NULL ELSE checkpoint_at END,
+      memory_json=?,next_action=?,memory_updated_at=?,updated_at=?,revision=revision+1 WHERE id=? AND revision=?`)
+      .run(memory.status, memory.blockers, action, JSON.stringify(memory), action, at, at, id, revision);
+    this.requireChange(result.changes);
+    return this.getProject(id);
+  }
+  wrapUpProject(id: string, input: WrapUpProjectInput): Project {
+    const { revision, status, blockers, nextAction } = wrapUpProjectSchema.parse(input);
+    const project = this.getProject(id);
+    this.checkRevision(project.revision, revision);
+    const at = now(), memory = { ...project.memory, status, blockers };
+    const result = this.db.prepare(`UPDATE projects SET memory_json=?,next_action=?,memory_updated_at=?,updated_at=?,checkpoint_at=?,revision=revision+1 WHERE id=? AND revision=?`)
+      .run(JSON.stringify(memory), nextAction, at, at, at, id, revision);
     this.requireChange(result.changes);
     return this.getProject(id);
   }
   deleteProject(id: string, revision: number) {
-    this.checkRevision(this.getProject(id).revision, revision);
-    this.requireChange(this.db.prepare('DELETE FROM projects WHERE id=? AND revision=?').run(id, revision).changes);
+    this.transaction(() => {
+      this.checkRevision(this.getProject(id).revision, revision);
+      this.requireChange(this.db.prepare('DELETE FROM projects WHERE id=? AND revision=?').run(id, revision).changes);
+      const focus = this.getFocus(), projectIds = focus.projectIds.filter(projectId => projectId !== id);
+      if (projectIds.length !== focus.projectIds.length) {
+        this.requireChange(this.db.prepare('UPDATE workspace_focus SET project_ids_json=?,revision=revision+1 WHERE id=1 AND revision=?')
+          .run(JSON.stringify(projectIds), focus.revision).changes);
+      }
+    });
   }
   saveObservation(id: string, snapshot: GitSnapshot | null, error: string | null) {
     // Observation updates never overwrite user fields, revision, or activity timestamps.
@@ -153,6 +184,24 @@ export class Store {
   deleteTask(id: string, revision: number) {
     this.checkRevision(this.getTask(id).revision, revision);
     this.requireChange(this.db.prepare('DELETE FROM tasks WHERE id=? AND revision=?').run(id, revision).changes);
+  }
+  getFocus(): WorkspaceFocus {
+    const row = this.db.prepare('SELECT project_ids_json,revision FROM workspace_focus WHERE id=1').get() as Row;
+    return { projectIds: JSON.parse(row.project_ids_json as string), revision: Number(row.revision) };
+  }
+  saveFocus(revision: number, projectIds: string[]): WorkspaceFocus {
+    const input = workspaceFocusSchema.parse({ revision, projectIds });
+    if (new Set(input.projectIds).size !== input.projectIds.length) throw appError(400, 'focus.duplicate');
+    return this.transaction(() => {
+      const focus = this.getFocus();
+      this.checkRevision(focus.revision, input.revision);
+      const exists = this.db.prepare('SELECT id FROM projects WHERE id=?');
+      for (const id of input.projectIds) if (!exists.get(id)) throw appError(400, 'focus.projectNotFound');
+      if (focus.projectIds.length === input.projectIds.length && focus.projectIds.every((id, index) => id === input.projectIds[index])) return focus;
+      this.requireChange(this.db.prepare('UPDATE workspace_focus SET project_ids_json=?,revision=revision+1 WHERE id=1 AND revision=?')
+        .run(JSON.stringify(input.projectIds), input.revision).changes);
+      return this.getFocus();
+    });
   }
   getSettings(): Settings {
     const r = this.db.prepare('SELECT value FROM settings WHERE id=1').get() as { value: string } | undefined;

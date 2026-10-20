@@ -38,7 +38,7 @@ export interface Project {
   id: string; name: string; path: string; description: string; category: string;
   status: ProjectStatus; priority: Priority; stage: string; nextAction: string;
   createdAt: string; updatedAt: string; revision: number;
-  memory: ProjectMemory; memoryUpdatedAt: string | null;
+  memory: ProjectMemory; memoryUpdatedAt: string | null; checkpointAt: string | null;
   git: GitSnapshot | null; gitError: string | null; lastCheckedAt: string | null;
 }
 export interface Task {
@@ -58,8 +58,9 @@ export const DESKTOP_APP_LABELS: Record<DesktopApp, string> = { claude: 'Claude 
 export type LaunchAction = 'folder' | 'vscode' | 'claude' | 'codex';
 export type Capabilities = Record<LaunchAction, boolean>;
 export interface Settings { scanRoots: string[]; staleDays: number; refreshSeconds: number; locale: Locale }
+export interface WorkspaceFocus { projectIds: string[]; revision: number }
 export interface Workspace {
-  projects: Project[]; tasks: Task[]; settings: Settings; csrfToken: string;
+  projects: Project[]; tasks: Task[]; settings: Settings; focus: WorkspaceFocus; csrfToken: string;
   environment: { platform: string; dataDir: string; capabilities: Capabilities; version: string; mode: 'web' | 'desktop'; desktopApps: DesktopCapabilities };
 }
 export interface HandoffPreview { markdown: string; filename: string; state: SharedState }

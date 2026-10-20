@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createApp, type AppOptions } from '../server/app.js';
 import { Store } from '../server/db.js';
 import { MAX_STATE_BYTES } from '../server/handoff.js';
-import { APP_VERSION, EMPTY_MEMORY, HANDOFF_TARGETS } from '../shared/types.js';
+import { APP_VERSION, EMPTY_MEMORY, HANDOFF_TARGETS, PROJECT_STATUSES } from '../shared/types.js';
 
 let server: Server, store: Store, dir: string, base: string, token: string;
 const launch = vi.fn(async () => {});
@@ -156,6 +156,96 @@ describe('same-origin local API', () => {
     expect((await api(`/projects/${id}`, 'DELETE', { revision: 2, confirm: false })).status).toBe(400);
     expect((await api(`/projects/${id}`, 'DELETE', { revision: 2, confirm: true })).status).toBe(200);
     expect(await readFile(join(dir, 'keep.txt'), 'utf8')).toBe('keep this file'); expect(store.listTasks()).toHaveLength(0);
+  });
+  it('returns and saves private ordered focus with its own revision and no lifecycle limit', async () => {
+    expect((await api('/workspace')).data.focus).toEqual({ projectIds: [], revision: 1 });
+    const projects = PROJECT_STATUSES.map(status => store.createProject({ path: `/${status}`, name: status, status }));
+    const projectIds = projects.map(project => project.id).reverse();
+    const saved = await api('/workspace/focus', 'PUT', { revision: 1, projectIds });
+    expect(saved).toEqual({ status: 200, data: { projectIds, revision: 2 } });
+    expect((await api('/workspace')).data.focus).toEqual(saved.data);
+    expect((await api('/workspace/focus', 'PUT', saved.data)).data).toEqual(saved.data);
+    expect((await api('/workspace/focus', 'PUT', { revision: 1, projectIds })).status).toBe(409);
+    for (const project of projects) expect(store.getProject(project.id)).toEqual(project);
+    const first = projects[0];
+    expect((await api(`/projects/${first.id}`, 'DELETE', { revision: first.revision, confirm: true })).status).toBe(200);
+    const cleaned = { projectIds: projectIds.filter(id => id !== first.id), revision: 3 };
+    expect((await api('/workspace')).data.focus).toEqual(cleaned);
+    expect((await api('/workspace/focus', 'PUT', saved.data)).status).toBe(409);
+    expect((await api('/workspace/focus', 'PUT', { revision: cleaned.revision, projectIds: [] })).data).toEqual({ projectIds: [], revision: 4 });
+  });
+  it('rejects malformed focus requests and localizes duplicate and unknown project errors', async () => {
+    const project = store.createProject({ path: '/focus-validation', name: 'Focus validation' });
+    const body = { revision: 1, projectIds: [project.id] };
+    for (const input of [undefined, null, [], {}, { revision: 1 }, { projectIds: [] }, { ...body, revision: 0 }, { ...body, revision: 1.5 },
+      { ...body, revision: '1' }, { ...body, projectIds: 'all' }, { ...body, projectIds: [null] }, { ...body, projectIds: ['not-a-uuid'] }, { ...body, unexpected: true }]) {
+      const result = await api('/workspace/focus', 'PUT', input);
+      expect(result.status).toBe(400); expect(result.data.code).toBe(input === null ? 'request.invalidJson' : 'validation.failed');
+    }
+    for (const [projectIds, code] of [[[project.id, project.id], 'focus.duplicate'], [[project.id, randomUUID()], 'focus.projectNotFound']] as const) {
+      const english = await api('/workspace/focus', 'PUT', { revision: 1, projectIds });
+      expect(english.status).toBe(400); expect(english.data.code).toBe(code);
+      store.updateSettings({ locale: 'zh-TW' });
+      const chinese = await api('/workspace/focus', 'PUT', { revision: 1, projectIds });
+      expect(chinese.status).toBe(400); expect(chinese.data.code).toBe(code); expect(chinese.data.error).toMatch(/[㐀-鿿]/);
+      expect(chinese.data.error).not.toBe(english.data.error); store.updateSettings({ locale: 'en' });
+    }
+    expect(store.getFocus()).toEqual({ projectIds: [], revision: 1 }); expect(store.getProject(project.id)).toEqual(project);
+  });
+  it('wraps up atomically with server timestamps, one revision and no lifecycle or task changes', async () => {
+    const created = store.createProject({ path: '/wrap-up', name: 'Wrap up', status: 'paused' });
+    const project = store.saveMemory(created.id, created.revision, { ...EMPTY_MEMORY, status: 'Old stop', blockers: 'Old blocker', notes: 'Keep notes', nextActions: 'Keep future candidates' });
+    const task = store.createTask(project.id, { title: 'Keep task' });
+    const started = Date.now(), input = { revision: project.revision, status: '', blockers: '', nextAction: '  Run the focused test  ' };
+    const saved = await api(`/projects/${project.id}/wrap-up`, 'POST', input);
+    expect(saved.status).toBe(200);
+    expect(saved.data).toEqual({ ...project, memory: { ...project.memory, status: '', blockers: '' }, nextAction: input.nextAction, revision: project.revision + 1,
+      checkpointAt: saved.data.checkpointAt, memoryUpdatedAt: saved.data.checkpointAt, updatedAt: saved.data.checkpointAt });
+    expect(Date.parse(saved.data.checkpointAt)).toBeGreaterThanOrEqual(started);
+    expect(Date.parse(saved.data.checkpointAt)).toBeLessThanOrEqual(Date.now());
+    expect(store.getTask(task.id)).toEqual(task);
+    expect((await api('/workspace')).data.projects[0].checkpointAt).toBe(saved.data.checkpointAt);
+    const stale = await api(`/projects/${project.id}/wrap-up`, 'POST', input);
+    expect(stale.status).toBe(409); expect(stale.data.code).toBe('revision.stale');
+    expect(store.getProject(project.id)).toEqual(saved.data);
+    const renamed = await api(`/projects/${project.id}`, 'PATCH', { revision: saved.data.revision, name: 'Unrelated edit', nextAction: input.nextAction });
+    expect(renamed.data.checkpointAt).toBe(saved.data.checkpointAt);
+    const changed = await api(`/projects/${project.id}/memory`, 'PUT', { revision: renamed.data.revision, memory: { ...project.memory, status: 'Different stop' } });
+    expect(changed.data.checkpointAt).toBeNull();
+  });
+  it('strictly validates all required wrap-up fields and refuses client timestamps', async () => {
+    const project = store.createProject({ path: '/wrap-validation', name: 'Wrap validation' });
+    const body = { revision: project.revision, status: '', blockers: '', nextAction: 'Next' };
+    const invalid = [undefined, null, [], {}, ...Object.keys(body).map(key => Object.fromEntries(Object.entries(body).filter(([field]) => field !== key))),
+      { ...body, revision: 0 }, { ...body, revision: 1.5 }, { ...body, revision: '1' }, { ...body, status: null }, { ...body, blockers: [] },
+      { ...body, status: 'x'.repeat(20001) }, { ...body, blockers: 'x'.repeat(20001) }, { ...body, nextAction: 'x'.repeat(2001) },
+      { ...body, nextAction: '' }, { ...body, nextAction: ' \n\t ' }, { ...body, nextAction: 42 }, { ...body, lifecycle: 'completed' },
+      { ...body, checkpointAt: '2020-01-01T00:00:00Z' }, { ...body, memoryUpdatedAt: '2020-01-01T00:00:00Z' }, { ...body, memory: EMPTY_MEMORY }];
+    for (const input of invalid) {
+      const result = await api(`/projects/${project.id}/wrap-up`, 'POST', input);
+      expect(result.status).toBe(400); expect(result.data.code).toBe(input === null ? 'request.invalidJson' : 'validation.failed');
+    }
+    expect((await api('/projects/not-a-uuid/wrap-up', 'POST', body)).status).toBe(400);
+    expect((await api(`/projects/${randomUUID()}/wrap-up`, 'POST', body)).status).toBe(404);
+    expect(store.getProject(project.id)).toEqual(project);
+    const maximum = await api(`/projects/${project.id}/wrap-up`, 'POST', { ...body, status: 's'.repeat(20000), blockers: 'b'.repeat(20000), nextAction: 'n'.repeat(2000) });
+    expect(maximum.status).toBe(200); expect(maximum.data.revision).toBe(project.revision + 1);
+    expect(maximum.data.status).toBe(project.status);
+  });
+  it('retains same-origin, CSRF, JSON and body-size guards on both resumption mutations', async () => {
+    const project = store.createProject({ path: '/guards', name: 'Guards' });
+    const routes = [
+      { path: '/workspace/focus', method: 'PUT', body: { revision: 1, projectIds: [project.id] } },
+      { path: `/projects/${project.id}/wrap-up`, method: 'POST', body: { revision: 1, status: '', blockers: '', nextAction: 'Next' } },
+    ];
+    for (const { path, method, body } of routes) {
+      const deniedHeaders: Record<string, string>[] = [{ 'X-Hub-Token': 'wrong' }, { Origin: 'https://evil.example' }, { 'Content-Type': 'text/plain' }, { 'Sec-Fetch-Site': 'cross-site' }];
+      for (const headers of deniedHeaders) expect((await api(path, method, body, headers)).status).toBe(403);
+      expect((await api(path, method, { ...body, huge: 'x'.repeat(1024 * 1024) })).status).toBe(413);
+      const malformed = await fetch(base + '/api' + path, { method, headers: { 'Content-Type': 'application/json', 'X-Hub-Token': token }, body: '{' });
+      expect(malformed.status).toBe(400); expect((await malformed.json()).code).toBe('request.invalidJson');
+    }
+    expect(store.getProject(project.id)).toEqual(project); expect(store.getFocus()).toEqual({ projectIds: [], revision: 1 });
   });
   it('previews and imports agent memory only after hash and revision confirmation', async () => {
     const { data: p } = await api('/projects', 'POST', { path: dir });

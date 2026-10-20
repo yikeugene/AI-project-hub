@@ -1,4 +1,4 @@
-import type { Workspace, Project, Task, Settings, ScanResult, HandoffPreview, SharedStatePreview, ProjectMemory, LaunchAction, TaskStatus, Priority, ProjectStatus, HandoffTarget, DesktopApp } from '../shared/types';
+import type { Workspace, WorkspaceFocus, Project, Task, Settings, ScanResult, HandoffPreview, SharedStatePreview, ProjectMemory, LaunchAction, TaskStatus, Priority, ProjectStatus, HandoffTarget, DesktopApp } from '../shared/types';
 import { PROFILE_HEADER } from '../shared/devices';
 import type { ApplyProposalInput, CachedSnapshot, ComposeMessageInput, DeviceState, GroupShareInput, GroupSharingPreview, Invitation, MessageView, PairInput, ProposalPreview, SharedPreview, SharePolicy, SharedWorkspaceItem, SharedWorkspaceState, SummaryDownload } from '../shared/devices';
 import type { GitApproval, GitAuditEvent, GitDetails, GitDiff, GitDiffInput, GitOperation, GitPreview, GitRequestView } from '../shared/git';
@@ -36,10 +36,13 @@ async function request<T>(path: string, method = 'GET', body?: unknown, profileI
 }
 export interface ProjectInput { path: string; name: string; description: string; category: string; status: ProjectStatus; priority: Priority; stage: string; nextAction: string }
 export interface TaskInput { title: string; detail: string; status: TaskStatus; priority: Priority }
+export interface WrapUpInput { revision: number; status: string; blockers: string; nextAction: string }
 export type HandoffAgent = HandoffTarget;
 const projectUrl = (id: string) => `/projects/${encodeURIComponent(id)}`;
 export const api = {
   workspace: async () => { const result = await request<Workspace>('/workspace'); token = result.csrfToken; return result; },
+  saveFocus: (revision: number, projectIds: string[]) => request<WorkspaceFocus>('/workspace/focus', 'PUT', { revision, projectIds }),
+  wrapUpProject: (id: string, input: WrapUpInput) => request<Project>(`${projectUrl(id)}/wrap-up`, 'POST', input),
   createProject: (input: ProjectInput) => { const { name, ...rest } = input; return request<Project>('/projects', 'POST', { ...rest, ...(name.trim() ? { name: name.trim() } : {}) }); },
   updateProject: (id: string, revision: number, input: Omit<ProjectInput, 'path'>) => request<Project>(projectUrl(id), 'PATCH', { ...input, revision }),
   removeProject: (project: Project) => request<{ ok: true }>(projectUrl(project.id), 'DELETE', { revision: project.revision, confirm: true }),

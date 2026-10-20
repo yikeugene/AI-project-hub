@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, deviceApi, errorMessage, governanceApi } from './api';
 import type { GovernanceState } from '../shared/governance';
 import type { DeviceState } from '../shared/devices';
-import type { Workspace } from '../shared/types';
+import type { Workspace, WorkspaceFocus } from '../shared/types';
 import type { DesktopBridge } from '../shared/desktop';
 import { DEFAULT_LOCALE, LocalizedError, translate, type Locale } from '../shared/i18n';
 import { useLocale } from './i18n';
@@ -15,38 +15,69 @@ export function useWorkspace() {
   const [error, setError] = useState<unknown>(null);
   const [lastLoaded, setLastLoaded] = useState<Date | null>(null);
   const [localeBusy, setLocaleBusy] = useState(false);
+  const [focusBusy, setFocusBusy] = useState(false);
+  const [focusError, setFocusError] = useState<unknown>(null);
+  const focus = useRef<WorkspaceFocus | null>(null);
+  const pendingReload = useRef(false);
   const sequence = useRef(0);
   const mutation = useRef(false);
   const alive = useRef(true);
   const ready = useRef(false);
-  const reload = useCallback(async () => {
-    if (mutation.current) return;
+  const load = useCallback(async () => {
     const current = ++sequence.current;
     try {
       const next = await api.workspace();
       if (alive.current && sequence.current === current) {
-        ready.current = true; setWorkspace(next); setError(null); setLastLoaded(new Date());
+        ready.current = true; focus.current = next.focus;
+        setWorkspace(next); setError(null); setLastLoaded(new Date());
       }
     } catch (err) { if (alive.current && sequence.current === current) setError(err); }
     finally { if (alive.current && sequence.current === current) setLoading(false); }
   }, []);
+  const reload = useCallback(async () => {
+    if (mutation.current) { pendingReload.current = true; return; }
+    await load();
+  }, [load]);
   const updateLocale = useCallback(async (nextLocale: Locale) => {
     if (!ready.current) throw new LocalizedError(clientMessages, 'unavailableWorkspace');
-    if (mutation.current) throw new LocalizedError(clientMessages, 'languageBusy');
+    if (mutation.current) throw new LocalizedError(clientMessages, 'workspaceBusy');
     mutation.current = true; sequence.current++; setLocaleBusy(true);
     try {
       const settings = await api.settings({ locale: nextLocale });
       if (alive.current) setWorkspace(previous => previous ? { ...previous, settings } : previous);
     } catch (error) {
-      // A lost response may follow a successful write. Read back the authoritative setting.
-      mutation.current = false;
-      await reload();
+      // A lost response may follow a successful write. Keep the lock while reading it back.
+      await load();
       throw error;
     } finally {
+      if (pendingReload.current) { pendingReload.current = false; await load(); }
       mutation.current = false;
       if (alive.current) setLocaleBusy(false);
     }
-  }, [reload]);
+  }, [load]);
+  const updateFocus = useCallback(async (change: (projectIds: string[]) => string[]) => {
+    if (!ready.current || !focus.current) { setFocusError(new LocalizedError(clientMessages, 'unavailableFocus')); return; }
+    if (mutation.current) return;
+    const current = focus.current;
+    const projectIds = change([...current.projectIds]);
+    if (JSON.stringify(projectIds) === JSON.stringify(current.projectIds)) return;
+    mutation.current = true; sequence.current++; setFocusBusy(true); setFocusError(null);
+    try {
+      const saved = await api.saveFocus(current.revision, projectIds);
+      if (alive.current) {
+        focus.current = saved;
+        setWorkspace(previous => previous ? { ...previous, focus: saved } : previous);
+      }
+    } catch (err) {
+      if (alive.current) setFocusError(err);
+      // A conflict or lost response needs canonical state, never a silent retry of old order.
+      await load();
+    } finally {
+      if (pendingReload.current) { pendingReload.current = false; await load(); }
+      mutation.current = false;
+      if (alive.current) setFocusBusy(false);
+    }
+  }, [load]);
   useEffect(() => {
     alive.current = true;
     void reload();
@@ -55,7 +86,8 @@ export function useWorkspace() {
     document.addEventListener('visibilitychange', visible);
     return () => { alive.current = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); sequence.current++; };
   }, [reload]);
-  return { workspace, loading, error: errorMessage(error, locale), reload, lastLoaded, updateLocale, localeBusy };
+  return { workspace, loading, error: errorMessage(error, locale), reload, lastLoaded, updateLocale, localeBusy,
+    updateFocus, focusBusy, focusError: errorMessage(focusError, locale) };
 }
 
 /** Device cache polling is independent of Workspace/Git and never initiates cloud traffic. */

@@ -234,6 +234,28 @@ input:disabled, textarea:disabled, select:disabled { background: #f5f7fb; }
 .focus-reasons summary { cursor: pointer; }
 .focus-reasons summary > span { float: right; color: #707481; }
 .focus-reasons ul { padding-left: 14px; line-height: 1.9; }
+.personal-focus-panel { margin-bottom: 24px; }
+.personal-focus-panel > .focus-heading { padding: 21px 24px 18px; }
+.personal-focus-panel > .focus-heading h2 { color: var(--ink); font-size: 16px; }
+.personal-focus-panel > .focus-heading p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.personal-focus-panel > .notice { margin: 14px 24px; }
+.personal-focus-panel > .button { margin: 10px 18px 16px; }
+.personal-focus-list { list-style: none; padding: 0 24px; margin: 0; }
+.personal-focus-list > .personal-focus-row { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(0, 1.6fr) auto; gap: 24px; align-items: start; padding: 21px 0; }
+.personal-focus-list > .personal-focus-row:last-child { border-bottom: 0; }
+.personal-focus-row > .focus-project { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 10px; min-width: 0; }
+.focus-project-name { color: var(--ink); font-size: 14px; font-weight: 650; text-align: left; overflow-wrap: anywhere; }
+.focus-project-name:hover { color: var(--accent); }
+.focus-row-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.focus-row-actions > .button { font-size: 12px; }
+.focus-order-actions, .project-row-actions { display: flex; align-items: center; gap: 3px; }
+.project-row-actions { justify-content: flex-end; }
+.focus-toggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+.focus-toggle[aria-pressed="true"] svg { fill: currentColor; }
+.personal-focus-panel > .focus-empty { padding: 24px; text-align: left; }
+.personal-focus-panel > .focus-empty h3 { color: var(--ink); font-size: 15px; }
+.personal-focus-panel > .focus-empty p { max-width: 70ch; color: var(--muted); font-size: 13px; }
+.focus-busy { margin: 12px 24px 0; }
 .context-note { display: flex; align-items: flex-start; gap: 9px; padding: 21px 9px; color: #707581; }
 .context-note svg { flex-shrink: 0; margin-top: 2px; color: #787288; }
 .context-note strong { display: block; font-size: 11px; color: #717488; font-weight: 500; line-height: 1.8; }
@@ -397,6 +419,50 @@ input:disabled, textarea:disabled, select:disabled { background: #f5f7fb; }
 .memory-field-notes { grid-column: 1 / -1; }
 .memory-field textarea { font-size: 13px; background: #fefefe; }
 .memory-field textarea::placeholder { font-size: 12px; }
+.resume-card { min-width: 0; }
+.resume-purpose { margin-bottom: 22px; max-width: 72ch; }
+.resume-purpose h3 { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.resume-purpose p { color: var(--ink); font-size: 14px; margin: 0; }
+.resume-card .resume-next { padding: 18px 20px; margin-top: 20px; border: 0; border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; background: var(--accent-soft); }
+.resume-next-content { min-width: 0; flex: 1; }
+.resume-card .resume-next h3 { color: var(--accent); font-size: 12px; }
+.resume-card .resume-next p { color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.75; overflow-wrap: anywhere; }
+.resume-meta { display: flex; flex-wrap: wrap; gap: 5px 16px; color: var(--muted); font-size: 11px; line-height: 1.7; margin-top: 12px; }
+.resume-source { display: block; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.resume-next-content > .resume-source { margin-top: 7px; }
+.resume-blockers p { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.resume-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0; }
+.resume-card-compact .resume-next { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; }
+.resume-card-compact .resume-next h3 { font-size: 11px; margin-bottom: 5px; }
+.resume-card-compact .resume-next p { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.resume-card-compact .resume-meta { margin-top: 9px; }
+.resume-card-compact .resume-blockers { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+.resume-card-compact .resume-blockers h3 { color: var(--amber); font-size: 11px; flex-shrink: 0; margin: 0; }
+.resume-card-compact .resume-blockers p { color: var(--amber); font-size: 11px; line-height: 1.7; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wrap-up-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; margin: 22px 0; }
+.wrap-up-field-next-action { grid-column: 1 / -1; }
+.wrap-up-field-next-action textarea { border-color: #aaa4df; background: #fcfbff; }
+.wrap-up-fields textarea { width: 100%; font-size: 14px; line-height: 1.7; }
+.wrap-up-toolbar { flex-wrap: wrap; }
+.wrap-up-toolbar > div { flex-wrap: wrap; }
+.project-detail > .notice { margin-inline: 26px; }
+@media (max-width: 1100px) {
+  .personal-focus-list > .personal-focus-row { grid-template-columns: minmax(120px, .7fr) minmax(0, 1.3fr); gap: 16px; }
+  .personal-focus-row > .focus-row-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-end; }
+}
+@media (max-width: 700px) {
+  .personal-focus-panel > .focus-heading, .personal-focus-panel > .focus-empty { padding-inline: 18px; }
+  .personal-focus-list { padding-inline: 18px; }
+  .personal-focus-list > .personal-focus-row { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .personal-focus-row > .focus-project { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  .personal-focus-row > .focus-row-actions { justify-content: space-between; }
+  .personal-focus-row .icon-button { width: 36px; height: 36px; }
+  .wrap-up-fields { grid-template-columns: minmax(0, 1fr); }
+  .resume-card .resume-next { padding: 15px; }
+  .resume-card-compact .resume-next { padding: 0; }
+  .resume-card .resume-next p { font-size: 14px; }
+  .resume-card .resume-title { flex-wrap: wrap; }
+}
 .git-summary { display: flex; gap: 25px; align-items: center; justify-content: space-between; background: #f8f9fc; border: 1px solid var(--border); border-radius: 7px; padding: 19px; }
 .git-branch { display: flex; align-items: center; gap: 10px; color: #767192; }
 .git-branch > div > span { display: block; font-size: 11px; margin-bottom: 6px; }

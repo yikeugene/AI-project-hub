@@ -38,9 +38,22 @@ export function getFocusItems(projects: Project[], tasks: Task[], staleDays = 14
   }).sort((a, b) => b.score - a.score || a.project.name.localeCompare(b.project.name) || a.project.id.localeCompare(b.project.id));
 }
 
-export function getResumeSummary(project: Project, tasks: Task[], locale: Locale = DEFAULT_LOCALE): { checkpoint: string; facts: string[]; nextAction: string } {
+export interface ResumeSummary {
+  checkpoint: string;
+  checkpointSource: 'wrap-up' | 'memory' | 'none';
+  facts: string[];
+  nextAction: string;
+  nextActionSource: 'recorded' | 'suggested' | 'none';
+}
+
+export function getResumeSummary(project: Project, tasks: Task[], locale: Locale = DEFAULT_LOCALE): ResumeSummary {
   const t = coreTranslator(locale);
-  const checkpoint = project.memory.status || project.memory.notes || project.memory.overview || t('resume.checkpoint');
+  const memoryCheckpoint = [project.memory.status, project.memory.notes, project.memory.overview].find(value => value.trim());
+  // A new wrap-up may intentionally leave status empty. Older notes are not that checkpoint.
+  const checkpoint = project.checkpointAt
+    ? (project.memory.status.trim() ? project.memory.status : t('resume.checkpointUnfilled'))
+    : memoryCheckpoint || t('resume.checkpoint');
+  const checkpointSource = project.checkpointAt ? 'wrap-up' : memoryCheckpoint ? 'memory' : 'none';
   const git = project.git;
   const facts: string[] = [];
   if (project.gitError) facts.push(t('resume.gitError', { detail: project.gitError }));
@@ -53,6 +66,12 @@ export function getResumeSummary(project: Project, tasks: Task[], locale: Locale
   }
   const open = tasks.filter(task => task.projectId === project.id && task.status !== 'done');
   facts.push(t('resume.tasks', { open: open.length, blocked: open.filter(task => task.status === 'blocked').length }));
-  const focus = getFocusItems([project], tasks, undefined, undefined, locale)[0];
-  return { checkpoint, facts, nextAction: focus?.action || project.nextAction || t('resume.noAction') };
+  // Explicit user intent always wins here; recommendation ranking keeps its existing policy.
+  const recorded = !!project.nextAction.trim();
+  const suggestion = recorded ? undefined : getFocusItems([project], tasks, undefined, undefined, locale)[0]?.action;
+  return {
+    checkpoint, checkpointSource, facts,
+    nextAction: recorded ? project.nextAction : suggestion || t('resume.noAction'),
+    nextActionSource: recorded ? 'recorded' : suggestion ? 'suggested' : 'none',
+  };
 }

@@ -44,7 +44,7 @@ const devices: DeviceState = {
 };
 const state: GovernanceState = { available: true, policy: { protocol: 2, networkId, deviceId: localId, role: 'admin', epoch: 2, roles: [{ deviceId: localId, role: 'admin' }, { deviceId: otherId, role: 'member' }] }, error: null, sharing: { activity: false, projects: [] }, statuses: [] };
 const governance: GovernanceController = { state, error: '', loading: false, reload: async () => {}, update: operation => operation() };
-const project: Project = { id: projectId, name: 'Project', path: 'C:\\private-project', description: '', category: '', status: 'active', priority: 'normal', stage: '', nextAction: '', createdAt, updatedAt: createdAt, revision: 1, memory: { ...EMPTY_MEMORY }, memoryUpdatedAt: null, git: null, gitError: null, lastCheckedAt: null };
+const project: Project = { id: projectId, name: 'Project', path: 'C:\\private-project', description: '', category: '', status: 'active', priority: 'normal', stage: '', nextAction: '', createdAt, updatedAt: createdAt, revision: 1, memory: { ...EMPTY_MEMORY }, memoryUpdatedAt: null, checkpointAt: null, git: null, gitError: null, lastCheckedAt: null };
 const noop = () => {}; const noopAsync = async () => {};
 const render = (content: ReactNode, locale: 'en' | 'zh-TW' = 'en') => renderToStaticMarkup(createElement(I18nProvider, { initialLocale: locale, children: content }));
 const button = (html: string, label: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(text => text.includes(label));

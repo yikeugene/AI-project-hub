@@ -12,6 +12,11 @@ export const projectFields = {
 };
 export const createProjectSchema = z.object({ ...projectFields, path: text(4096).min(1) }).partial().required({ path: true }).strict();
 export const updateProjectSchema = z.object(projectFields).partial().extend({ revision: revisionSchema }).strict();
+export const wrapUpProjectSchema = z.object({
+  revision: revisionSchema, status: text(20000), blockers: text(20000),
+  nextAction: text(2000).refine(value => value.trim().length > 0),
+}).strict();
+export const workspaceFocusSchema = z.object({ revision: revisionSchema, projectIds: z.array(z.string().uuid()) }).strict();
 export const taskFields = { title: text(500).trim().min(1), detail: text(10000), status: z.enum(TASK_STATUSES), priority: z.enum(PRIORITIES) };
 export const createTaskSchema = z.object(taskFields).partial().required({ title: true }).strict();
 export const updateTaskSchema = z.object(taskFields).partial().extend({ revision: revisionSchema }).strict();
@@ -27,6 +32,7 @@ export const sharedStateSchema = z.object({
 }).strict();
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;
+export type WrapUpProjectInput = z.infer<typeof wrapUpProjectSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 

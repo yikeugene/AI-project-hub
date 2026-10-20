@@ -9,7 +9,7 @@ import { getCapabilities, openProject } from './launcher.js';
 import { buildHandoff, exportHandoff, MAX_STATE_BYTES, previewPastedSharedState, previewSharedState } from './handoff.js';
 import { getDesktopCapabilities, openDesktopApp } from './desktop-apps.js';
 import { APP_VERSION, DESKTOP_APPS, HANDOFF_TARGETS } from '../shared/types.js';
-import { createProjectSchema, createTaskSchema, HttpError, appError, errorMessage, errorResponse, validationDetails, memorySchema, revisionSchema, settingsSchema, updateProjectSchema, updateTaskSchema } from './validation.js';
+import { createProjectSchema, createTaskSchema, HttpError, appError, errorMessage, errorResponse, validationDetails, memorySchema, revisionSchema, settingsSchema, updateProjectSchema, updateTaskSchema, workspaceFocusSchema, wrapUpProjectSchema } from './validation.js';
 import type { Capabilities, DesktopApp, DesktopCapabilities, GitSnapshot, LaunchAction, Settings } from '../shared/types.js';
 import { coreTranslator } from '../shared/locales/core.js';
 import { RelayError } from './relay.js';
@@ -107,9 +107,13 @@ export function createApp(options: AppOptions) {
   const pasteSchema = z.object({ text: z.string().max(MAX_STATE_BYTES) }).strict();
 
   app.get('/api/workspace', async (_req, res) => {
-    res.json({ projects: store.listProjects(), tasks: store.listTasks(), settings: store.getSettings(), csrfToken: token,
+    res.json({ projects: store.listProjects(), tasks: store.listTasks(), settings: store.getSettings(), focus: store.getFocus(), csrfToken: token,
       environment: { platform: process.platform, dataDir: options.dataDir, capabilities: await (options.capabilities ?? getCapabilities)(), version: APP_VERSION,
         mode: options.mode ?? 'web', desktopApps: await (options.desktopCapabilities ?? getDesktopCapabilities)() } });
+  });
+  app.put('/api/workspace/focus', (req, res) => {
+    const input = workspaceFocusSchema.parse(req.body);
+    res.json(store.saveFocus(input.revision, input.projectIds));
   });
   app.post('/api/desktop-apps/:app/open', async (req, res) => {
     const desktopApp = z.enum(DESKTOP_APPS).parse(req.params.app);
@@ -164,6 +168,7 @@ export function createApp(options: AppOptions) {
     const input = z.object({ revision: revisionSchema, memory: memorySchema }).strict().parse(req.body);
     res.json(store.saveMemory(idOf(req), input.revision, input.memory));
   });
+  app.post('/api/projects/:id/wrap-up', (req, res) => res.json(store.wrapUpProject(idOf(req), wrapUpProjectSchema.parse(req.body))));
   app.post('/api/projects/:id/tasks', (req, res) => res.status(201).json(store.createTask(idOf(req), createTaskSchema.parse(req.body))));
   app.patch('/api/tasks/:id', (req, res) => res.json(store.updateTask(idOf(req), updateTaskSchema.parse(req.body))));
   app.delete('/api/tasks/:id', (req, res) => {

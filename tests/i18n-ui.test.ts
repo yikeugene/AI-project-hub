@@ -24,7 +24,7 @@ const render = (content: ReactNode, locale?: Locale) => renderToStaticMarkup(loc
 const project: Project = {
   id: '33333333-3333-4333-8333-333333333333', name: '保留 User project', path: 'C:\\工作\\unchanged-repo', description: 'User prose 原文', category: '',
   status: 'active', priority: 'normal', stage: 'User stage', nextAction: 'User next action 原文', createdAt: '2026-10-01T12:00:00Z', updatedAt: '2026-10-01T12:00:00Z', revision: 1,
-  memory: { ...EMPTY_MEMORY }, memoryUpdatedAt: null, git: null, gitError: null, lastCheckedAt: null,
+  memory: { ...EMPTY_MEMORY }, memoryUpdatedAt: null, checkpointAt: null, git: null, gitError: null, lastCheckedAt: null,
 };
 afterEach(() => vi.unstubAllGlobals());
 

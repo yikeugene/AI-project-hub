@@ -1,8 +1,8 @@
 import type { MessageCatalog } from '../../shared/i18n';
 
 const en = {
-  title: 'Focus on what comes next',
-  subtitle: 'Find your direction in the context you already have.',
+  title: 'Suggested next steps',
+  subtitle: 'Candidates from local rules, separate from your chosen focus.',
   taskSource: 'From an unfinished task',
   nextActionSource: 'From a manually recorded next action',
   why: 'Why this recommendation?',
@@ -25,8 +25,8 @@ const en = {
 export const focusMessages: MessageCatalog<keyof typeof en> = {
   en,
   'zh-TW': {
-    title: '接下來，專注這裡',
-    subtitle: '從已有的脈絡，找回工作方向。',
+    title: '可考慮的下一步',
+    subtitle: '依本機規則整理的候選，不會改動您的聚焦清單。',
     taskSource: '來自未完成任務',
     nextActionSource: '來自手動記錄的下一步',
     why: '為什麼推薦？',

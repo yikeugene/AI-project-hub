@@ -23,6 +23,8 @@ const messages = {
   'project.duplicate': ['This folder is already in Hub.', '此資料夾已在 Hub 中。'],
   'project.pathChanged': ['The project’s physical path has changed. Add the project again.', '項目實體路徑已變更，請重新加入項目。'],
   'task.notFound': ['Task not found.', '找不到此任務。'],
+  'focus.duplicate': ['A project can appear only once in your focus list.', '聚焦清單中的專案不能重複。'],
+  'focus.projectNotFound': ['Choose only projects that still exist on this computer. Reload the workspace and try again.', '只能選擇這台電腦上仍存在的專案。請重新載入工作區後重試。'],
   'revision.changed': ['The content was updated or removed by another process. Reload and try again.', '內容已被其他程序更新或移除。請重新載入後重試。'],
   'revision.stale': ['The content was updated in another tab. Save your text, then reload the latest version and try again.', '內容已在其他分頁更新。請先保存你的文字，再重新載入最新版本後重試。'],
   'database.newer': ['The database version is newer. Update AI Project Hub; data will not be downgraded or overwritten.', '資料庫版本較新，請更新 AI Project Hub；不會降版或覆寫資料。'],

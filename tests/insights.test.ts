@@ -59,6 +59,48 @@ describe('transparent focus suggestions', () => {
       expect(getResumeSummary(a, s.listTasks()).nextAction).toBe('continue');
     } finally { s.close(); }
   });
+  it('keeps the recorded next action above task suggestions without changing ranking policy', () => {
+    const s = new Store(':memory:');
+    try {
+      const p = s.createProject({ path: '/explicit-action', name: 'A', nextAction: '  Start with my chosen step 原文\n  ' });
+      s.createTask(p.id, { title: 'Ranked task instead', priority: 'high', status: 'doing' });
+      const tasks = s.listTasks();
+      for (const locale of ['en', 'zh-TW'] as const) {
+        expect(getFocusItems([p], tasks, 14, 0, locale)[0].action).toBe('Ranked task instead');
+        expect(getResumeSummary(p, tasks, locale)).toMatchObject({ nextAction: p.nextAction, nextActionSource: 'recorded' });
+        expect(getResumeSummary({ ...p, status: 'archived' }, tasks, locale)).toMatchObject({ nextAction: p.nextAction, nextActionSource: 'recorded' });
+        expect(getResumeSummary({ ...p, nextAction: '' }, tasks, locale)).toMatchObject({ nextAction: 'Ranked task instead', nextActionSource: 'suggested' });
+        expect(getResumeSummary({ ...p, nextAction: '  ' }, [], locale).nextActionSource).toBe('none');
+      }
+    } finally { s.close(); }
+  });
+  it('does not reuse older notes when an explicit new checkpoint leaves status unfilled', () => {
+    const s = new Store(':memory:');
+    try {
+      const created = s.createProject({ path: '/checkpoint', name: 'Checkpoint' });
+      const p = { ...created, checkpointAt: '2026-10-20T14:00:00Z', memory: { ...EMPTY_MEMORY, status: '  ', notes: 'Older notes are not new progress', overview: 'Purpose is not a wrap-up' } };
+      for (const locale of ['en', 'zh-TW'] as const) {
+        expect(getResumeSummary(p, [], locale)).toMatchObject({ checkpoint: coreMessages[locale]['resume.checkpointUnfilled'], checkpointSource: 'wrap-up' });
+        expect(getResumeSummary({ ...p, checkpointAt: null }, [], locale)).toMatchObject({ checkpoint: p.memory.notes, checkpointSource: 'memory' });
+        expect(getResumeSummary({ ...p, memory: { ...p.memory, status: '  Current note 原文  ' } }, [], locale).checkpoint).toBe('  Current note 原文  ');
+      }
+    } finally { s.close(); }
+  });
+  it('keeps Git observations, saved-memory time and metadata time out of checkpoint inference', () => {
+    const s = new Store(':memory:');
+    try {
+      const created = s.createProject({ path: '/no-inference', name: 'No inference' });
+      const p = { ...created, checkpointAt: null, memoryUpdatedAt: '2026-10-19T11:22:00Z', updatedAt: '2026-10-20T10:00:00Z', lastCheckedAt: '2026-10-20T10:30:00Z', git: {
+        isRepo: true, branch: 'main', head: 'abc123', branches: ['main'], commits: [{ hash: 'abc123', shortHash: 'abc123', subject: 'Commit is not a progress checkpoint', date: '2026-10-17T09:00:00Z' }], changes: [], changedCount: 0, untrackedCount: 0, stagedCount: 0, conflictCount: 0, lastCommitAt: '2026-10-17T09:00:00Z', observedAt: '2026-10-20T10:30:00Z',
+      } };
+      const summary = getResumeSummary(p, []);
+      expect(summary).toMatchObject({ checkpoint: coreMessages.en['resume.checkpoint'], checkpointSource: 'none', nextActionSource: 'none' });
+      expect(summary.checkpoint).not.toContain('2026');
+      expect(summary.facts).toContain('Latest commit: Commit is not a progress checkpoint');
+      expect(summary.facts.join(' ')).toContain('Commit time does not indicate the actual last development activity.');
+      expect(activityAt(p)).toBe(p.git.lastCommitAt);
+    } finally { s.close(); }
+  });
   it('never invents activity or progress from Hub edits', () => {
     const s = new Store(':memory:');
     try {

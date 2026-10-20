@@ -13,24 +13,28 @@ const filename = () => { const dir = mkdtempSync(join(tmpdir(), 'hub-device-migr
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
 const governanceTables = ['git_audit', 'git_operations', 'git_approval_inbox', 'governance_profiles'];
 const deviceTables = ['device_outbox', 'device_messages', 'remote_snapshots', 'project_publications', 'project_shares', 'paired_devices', 'relay_profiles', 'device_installation'];
-function legacyVersion(file: string, version: 1 | 2 | 3) {
+function legacyVersion(file: string, version: 1 | 2 | 3 | 4) {
   const db = new DatabaseSync(file);
+  db.exec('DROP TABLE workspace_focus; ALTER TABLE projects DROP COLUMN checkpoint_at;');
   const tables = version === 1 ? [...governanceTables, ...deviceTables] : version === 2 ? governanceTables : [];
-  if (version > 1) db.exec('ALTER TABLE relay_profiles DROP COLUMN attached; ALTER TABLE relay_profiles DROP COLUMN label; ALTER TABLE project_publications DROP COLUMN published_at;');
+  if (version === 2 || version === 3) db.exec('ALTER TABLE relay_profiles DROP COLUMN attached; ALTER TABLE relay_profiles DROP COLUMN label; ALTER TABLE project_publications DROP COLUMN published_at;');
   db.exec(tables.map(table => `DROP TABLE ${table};`).join('\n') + `\nPRAGMA user_version=${version};`); db.close();
 }
 
 describe('additive device storage migration', () => {
-  it.each([1, 2, 3] as const)('creates v4 and upgrades v%i without changing local records', version => {
+  it.each([1, 2, 3, 4] as const)('creates v5 and upgrades v%i without changing local records', version => {
     const file = filename(); let store = new Store(file);
     const project = store.createProject({ path: '/do-not-change', name: 'Keep existing project' });
     const task = store.createTask(project.id, { title: 'Keep existing task' });
     store.updateSettings({ staleDays: 42 });
-    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(4); store.close();
+    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(5); store.close();
     legacyVersion(file, version); store = new Store(file);
     try {
       expect(store.getProject(project.id)).toEqual(project); expect(store.getTask(task.id)).toEqual(task);
-      expect(store.getSettings().staleDays).toBe(42); expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(4);
+      expect(store.getSettings().staleDays).toBe(42); expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(5);
+      expect(store.getProject(project.id).checkpointAt).toBeNull();
+      expect(store.getFocus()).toEqual({ projectIds: [], revision: 1 });
+      expect(store.db.prepare('SELECT * FROM workspace_focus').all()).toEqual([{ id: 1, project_ids_json: '[]', revision: 1 }]);
       expect(store.db.prepare('SELECT COUNT(*) AS n FROM relay_profiles').get()!.n).toBe(0);
       expect(store.db.prepare('SELECT COUNT(*) AS n FROM git_operations').get()!.n).toBe(0);
     } finally { store.close(); }
@@ -105,10 +109,30 @@ describe('additive device storage migration', () => {
       expect(columns).not.toContain('attached'); expect(columns).not.toContain('label');
     } finally { db.close(); }
   });
+  it('rolls back every v5 addition when focus storage cannot be created', () => {
+    const file = filename(); const initial = new Store(file);
+    const project = initial.createProject({ path: '/preserved-v4', name: 'Preserved v4 project' });
+    const task = initial.createTask(project.id, { title: 'Preserved v4 task' });
+    initial.close(); legacyVersion(file, 4);
+    let db = new DatabaseSync(file);
+    db.exec("CREATE TABLE workspace_focus(incompatible TEXT); INSERT INTO workspace_focus VALUES('preserve me');"); db.close();
+    expect(() => new Store(file)).toThrow(); db = new DatabaseSync(file);
+    try {
+      expect(db.prepare('PRAGMA user_version').get()!.user_version).toBe(4);
+      expect(db.prepare('PRAGMA table_info(projects)').all().map(row => row.name)).not.toContain('checkpoint_at');
+      expect(db.prepare('SELECT * FROM workspace_focus').all()).toEqual([{ incompatible: 'preserve me' }]);
+      expect(db.prepare('SELECT name FROM projects WHERE id=?').get(project.id)!.name).toBe(project.name);
+      expect(db.prepare('SELECT title FROM tasks WHERE id=?').get(task.id)!.title).toBe(task.title);
+      db.exec('DROP TABLE workspace_focus');
+    } finally { db.close(); }
+    const recovered = new Store(file);
+    try { expect(recovered.getProject(project.id)).toEqual(project); expect(recovered.getTask(task.id)).toEqual(task); }
+    finally { recovered.close(); }
+  });
   it('rejects unknown newer versions and releases the connection', () => {
-    const file = filename(), db = new DatabaseSync(file); db.exec('PRAGMA user_version=5'); db.close();
+    const file = filename(), db = new DatabaseSync(file); db.exec('PRAGMA user_version=6'); db.close();
     expect(() => new Store(file)).toThrow(/version is newer/);
-    const reopened = new DatabaseSync(file); expect(reopened.prepare('PRAGMA user_version').get()!.user_version).toBe(5); reopened.close();
+    const reopened = new DatabaseSync(file); expect(reopened.prepare('PRAGMA user_version').get()!.user_version).toBe(6); reopened.close();
   });
 });
 

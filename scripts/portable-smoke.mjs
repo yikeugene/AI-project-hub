@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import releaseSource from './release-source.cjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -157,7 +158,10 @@ async function run() {
   assert.deepEqual(bridge.methods, ['chooseDirectory', 'saveText', 'writeClipboard', 'getUpdateState', 'checkForUpdates', 'downloadUpdate', 'installUpdate', 'openReleases', 'onUpdateState'].sort());
   assert.equal(bridge.process, 'undefined'); assert.equal(bridge.require, 'undefined');
   const updater = await page.evaluate(() => window.hubDesktop.getUpdateState());
-  assert.equal(updater.status, 'unavailable'); assert.equal(updater.reason, 'unconfigured'); assert.equal(updater.releaseUrl, null);
+  const source = releaseSource.getReleaseSource();
+  assert.equal(updater.status, 'unavailable');
+  assert.equal(updater.reason, source ? 'portable' : 'unconfigured');
+  assert.equal(updater.releaseUrl, source ? `https://github.com/${source.owner}/${source.repo}/releases/latest` : null);
   await page.screenshot({ path: join(work, 'portable-window-en.png') });
   checked('Portable extraction, isolated data, English UI, session protection and unchanged native bridge');
 

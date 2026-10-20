@@ -2,11 +2,11 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
-**Download v0.3.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe)
+**Download v0.4.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-portable-x64.exe)
 
 A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, Git observations, and individually approved Git actions in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
 
-**Source-update scope:** the approved Git workflow, administrator roles, optional device status, and close-to-tray behavior described below are current source changes. Editing or building this source does not update the existing v0.3.0 download assets, publish a release, or deploy cloud SQL. Use a freshly built and verified app containing these changes, and explicitly upgrade your own relay before enabling them.
+**New in v0.4.0:** approved Git operations, administrator roles, optional device status, close-to-tray behavior, and a configured GitHub update source. Back up your data before upgrading; the local database moves to schema v3. Git approvals also require you to upgrade your own relay using the documented v2 migration and designate an administrator.
 
 **The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
 
@@ -22,18 +22,18 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 ## Get the Windows app
 
-Download **v0.3.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
+Download **v0.4.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
 
 Run the installer to install for your Windows user, or download and double-click the portable executable. GitHub's **Source code (zip)** and **Source code (tar.gz)** archives are for developers.
 
 | Download | Use |
 | --- | --- |
-| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
-| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe) | Run directly without an installer. |
+| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
+| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-portable-x64.exe) | Run directly without an installer. |
 
-[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.3.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/SHA256SUMS.txt)
+[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.4.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/SHA256SUMS.txt)
 
-Version 0.3.0 uses manual downloads for updates; its in-app updater is not configured. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
+Version 0.4.0 configures the official GitHub update source. Users upgrading from 0.3.0 must download this release manually because that version has no configured updater. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
 
 **Builds are currently unsigned.** Windows SmartScreen, Smart App Control, or organizational policy may warn or block them. Verify the publisher's release location and any available verification information. Do not disable Windows security protections to run the app; if policy blocks it, consult your administrator or wait for an approved distribution.
 
@@ -47,7 +47,7 @@ Git is needed for Git views and approved Git operations; projects, memory, tasks
 4. **Save a checkpoint.** Use project memory for the current state, decisions, and known issues.
 5. **Continue work.** The workbench combines recorded context with Git facts and explainable suggestions. Commit counts are not completion percentages.
 
-Your normal workspace is not seeded with demo projects. **This source upgrades the local SQLite schema to version 3.** Back up before upgrading: older installed apps cannot open the upgraded database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
+Your normal workspace is not seeded with demo projects. **Version 0.4.0 upgrades the local SQLite schema to version 3.** Back up before upgrading: older installed apps cannot open the upgraded database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
 
 ## AI handoffs: copy, paste, review
 
@@ -90,11 +90,11 @@ The reviewer receives an explicitly previewed summary—not source contents, a d
 
 ## Updates
 
-Updates are **user initiated**, not unattended upgrades. For **v0.3.0**, download updates from [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest) and fully quit the app before installing or replacing it (use tray **Quit** on close-to-tray builds). In-app update controls require a build with a configured GitHub update source.
+Updates are **user initiated**, not unattended upgrades. Version **0.4.0** configures [this GitHub release source](https://github.com/yikeugene/AI-project-hub/releases/latest). To upgrade from v0.3.0, download the new release manually and fully quit the app before installing or replacing it. On v0.4.0, use tray **Quit** to exit completely.
 
 | How you run Hub | Update path |
 | --- | --- |
-| Installed NSIS version, default data directory | In v0.3.0, download and run the newer installer manually. A build configured for GitHub updates can offer a manual check, download, and explicit restart-to-install. Save your work and back up first. |
+| Installed NSIS version, default data directory | From v0.4.0 onward, check and download updates manually in the app, then explicitly confirm restart-to-install. Save your work and back up first. Upgrading from v0.3.0 requires a manual installer download. |
 | Portable executable | Open [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest), download the newer portable `.exe`, fully quit Hub, and replace the old executable. |
 | Custom data directory (`HUB_DATA_DIR` or `--data-dir`) | Use the manual release-download/install path, then launch with the same data-directory setting. In-app restart-to-install is not offered for this mode. |
 | Unconfigured source build | No GitHub release location is guessed. A maintainer must configure it before update checks or release links can work. |
@@ -174,7 +174,7 @@ npm run test:desktop
 
 `npm run test:ui` **only creates UI fixtures**, including sample repositories and `.local/verification/hub.sqlite`. It is not a UI test runner and does not launch or verify the app.
 
-Targeted governance adapter/PGlite SQL and local approval/status integration tests have passed during this source update. Those checks do **not** establish that the entire updated suite, packaged Windows tray/update flows, or browser interactions are verified for your build. Rerun the full checks and native/UI tests on the exact release candidate. Live Supabase, true multi-connection PostgreSQL races, and two physical desktops remain unverified; see [verification boundaries](docs/GIT-SAFETY.md#verification-scope).
+The v0.4.0 release passed all 400 tests across 26 files, 31 packaged desktop checks, 9 packaged Git checks, and 4 portable lifecycle checks, with no skipped checks. Its installer update metadata matches the built installer. NSIS installation/uninstallation and end-to-end update installation were not executed; live Supabase, true multi-connection PostgreSQL races, and two physical desktops also remain unverified. See the [release verification](docs/RELEASE-0.4.0.md#verification--驗證) and [verification boundaries](docs/GIT-SAFETY.md#verification-scope). Rerun the checks on your own builds.
 
 ### Optional web development mode
 
@@ -195,13 +195,13 @@ Web mode defaults to `http://127.0.0.1:4317` and requires its terminal to stay o
 
 The source files are at the **repository root**, alongside this README and `package.json`. Review what you publish: keep `.local/`, private databases, `.env` files, credentials, personal screenshots, and generated executables out of version control. Executables belong in Release assets.
 
-1. Configure the real **public GitHub repository** in `release.config.cjs`. The checked-in owner/repo values are intentionally empty; replace them with your own values, not these placeholders:
+1. Verify the **public GitHub repository** in `release.config.cjs`. Official builds use `yikeugene/AI-project-hub`; forks must replace it with their own release repository:
 
    ```js
    module.exports = {
      github: {
-       owner: '<GITHUB_OWNER>',
-       repo: '<GITHUB_REPOSITORY>',
+       owner: 'yikeugene',
+       repo: 'AI-project-hub',
      },
    };
    ```

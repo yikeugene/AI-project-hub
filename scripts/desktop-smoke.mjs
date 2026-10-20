@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { _electron } from 'playwright-core';
+import releaseSource from './release-source.cjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const executableFlag = process.argv.indexOf('--executable');
@@ -139,7 +140,17 @@ try {
   checked('Fresh native workspace defaults to English, including document metadata and native menus');
   await captureLanguageLayout(page, 'en');
   const initialUpdate = await page.evaluate(() => window.hubDesktop.getUpdateState());
-  assert.deepEqual(initialUpdate, { status: 'unavailable', reason: 'unconfigured', currentVersion: initial.environment.version, releaseUrl: null, revision: 0 });
+  const source = releaseSource.getReleaseSource();
+  const releaseUrl = source ? `https://github.com/${source.owner}/${source.repo}/releases/latest` : null;
+  const packagedMode = await desktop.evaluate(({ app }) => {
+    if (process.env.PORTABLE_EXECUTABLE_DIR) return 'portable';
+    const fs = process.getBuiltinModule('node:fs');
+    const path = process.getBuiltinModule('node:path');
+    const installed = fs.existsSync(path.join(process.resourcesPath, 'hub-nsis-install'))
+      && fs.existsSync(path.join(path.dirname(app.getPath('exe')), 'Uninstall AI Project Hub.exe'));
+    return installed ? 'custom-data-dir' : 'unpacked';
+  });
+  assert.deepEqual(initialUpdate, { status: 'unavailable', reason: source ? packagedMode : 'unconfigured', currentVersion: initial.environment.version, releaseUrl, revision: 0 });
   await desktop.evaluate(({ shell }) => {
     globalThis.__smokeOriginalOpenExternal = shell.openExternal;
     globalThis.__smokeExternalCalls = [];
@@ -155,10 +166,10 @@ try {
       return { check, download, install };
     });
     for (const value of Object.values(inertUpdates)) assert.deepEqual(value, initialUpdate);
-    assert.deepEqual(await desktop.evaluate(() => globalThis.__smokeExternalCalls), []);
+    assert.deepEqual(await desktop.evaluate(() => globalThis.__smokeExternalCalls), releaseUrl ? [releaseUrl] : []);
     assert.equal(page.isClosed(), false);
   } finally { await desktop.evaluate(({ shell }) => { shell.openExternal = globalThis.__smokeOriginalOpenExternal; delete globalThis.__smokeOriginalOpenExternal; delete globalThis.__smokeExternalCalls; }); }
-  checked('Unconfigured updater actions are inert, ignore arbitrary renderer URLs, and do not open external pages or close the app');
+  checked('Isolated updater actions are inert; release navigation uses only the configured URL and never closes the app');
   await desktop.evaluate(({ dialog }) => {
     dialog.showOpenDialog = async (_owner, options) => { globalThis.__smokeOpenOptions = options; return { canceled: true, filePaths: [] }; };
     dialog.showSaveDialog = async (_owner, options) => { globalThis.__smokeSaveOptions = options; return { canceled: true }; };

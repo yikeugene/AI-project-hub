@@ -2,11 +2,11 @@
 
 [English](README.md) · **繁體中文**
 
-**下載 Windows x64 v0.3.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe)
+**下載 Windows x64 v0.4.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-portable-x64.exe)
 
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint、Git 觀測與逐次審批的 Git 操作，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
-**原始碼更新範圍：** 下述 Git 審批、管理員角色、可選裝置狀態與關閉縮至系統匣，是目前原始碼的變更。修改或建置原始碼不會更新既有 v0.3.0 下載資產、發布新版或部署雲端 SQL。請使用包含這些變更且重新建置、驗證的程式，並先明確升級自己的 relay。
+**v0.4.0 新增：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。升級前請備份資料；本機資料庫會升級至 schema v3。Git 審批另需依文件套用 v2 relay 遷移並指定管理員。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
 
@@ -22,18 +22,18 @@
 
 ## 取得 Windows 桌面版
 
-透過下方連結直接下載 **v0.3.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
+透過下方連結直接下載 **v0.4.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
 執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
 | 下載 | 用途 |
 | --- | --- |
-| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
-| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/AI-Project-Hub-0.3.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.3.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.3.0/SHA256SUMS.txt)
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.4.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/SHA256SUMS.txt)
 
-v0.3.0 需手動下載更新，這一版尚未設定程式內更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
+v0.4.0 已設定正式 GitHub 更新來源。從 v0.3.0 升級仍需手動下載本版，因舊版未設定更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
 **目前建置尚未做程式碼簽署。** Windows SmartScreen、Smart App Control 或組織政策可能提醒或阻擋。請確認發布者的發行位置及可用的驗證資訊，不要為了執行程式停用 Windows 安全防護；若遭政策阻擋，請洽管理員或等待經核准的發行方式。
 
@@ -47,7 +47,7 @@ Git 檢視與經批准的 Git 操作需要 Git；沒有 Git 仍可使用專案�
 4. **儲存 checkpoint。** 在專案記憶記錄目前進度、決策與已知問題。
 5. **繼續工作。** 工作台結合已記錄脈絡、Git 事實與可解釋的建議；commit 數量不是完成百分比。
 
-正式工作區不會預填示範專案。**目前原始碼會將本機 SQLite schema 升級至第 3 版。** 升級前請備份；已安裝的舊版程式無法開啟升級後資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
+正式工作區不會預填示範專案。**v0.4.0 會將本機 SQLite schema 升級至第 3 版。** 升級前請備份；已安裝的舊版程式無法開啟升級後資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
 
 ## AI 交接：複製、貼上、審閱
 
@@ -90,11 +90,11 @@ Hub 不建立或修改 `AGENTS.md`／`CLAUDE.md`。匯出的檔案可能被 Git 
 
 ## 更新
 
-更新由**使用者主動操作**，不是無人值守升級。**v0.3.0** 請從 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest) 手動下載新版，完全退出 App 後再安裝或替換（支援縮至系統匣的建置請選擇系統匣的**退出**）。程式內更新控制項需要使用已設定 GitHub 更新來源的建置。
+更新由**使用者主動操作**，不是無人值守升級。**v0.4.0** 已設定[正式 GitHub 更新來源](https://github.com/yikeugene/AI-project-hub/releases/latest)。從 v0.3.0 升級需手動下載新版，完全退出 App 後再安裝或替換。v0.4.0 請從系統匣選擇**完全退出**。
 
 | 執行方式 | 更新方式 |
 | --- | --- |
-| NSIS 安裝版，使用預設資料目錄 | v0.3.0 需手動下載並執行新版安裝程式。已設定 GitHub 更新來源的建置才可提供手動檢查、下載及明確確認後重新啟動安裝。請先儲存工作並備份。 |
+| NSIS 安裝版，使用預設資料目錄 | v0.4.0 起可在程式內手動檢查、下載，再明確確認重新啟動安裝。請先儲存工作並備份。從 v0.3.0 升級需手動下載安裝程式。 |
 | 免安裝執行檔 | 開啟 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)，下載較新的 portable `.exe`，完全退出 Hub 後更換舊執行檔。 |
 | 自訂資料目錄（`HUB_DATA_DIR` 或 `--data-dir`） | 手動下載／安裝發行檔，之後用相同的資料目錄設定啟動。此模式不提供程式內重新啟動安裝。 |
 | 尚未設定發行來源的原始碼建置 | 不猜測 GitHub 發行位置。維護者設定完成後，更新檢查或發行連結才可使用。 |
@@ -174,7 +174,7 @@ npm run test:desktop
 
 `npm run test:ui` **只建立 UI fixtures**，包括範例儲存庫及 `.local/verification/hub.sqlite`。它不是 UI 測試執行器，也不會啟動或驗證 App。
 
-此次原始碼更新已通過針對性的 governance adapter／PGlite SQL 與本機審批／狀態整合測試；這**不代表**完整更新後測試套件、Windows 打包版系統匣／更新流程或瀏覽器互動已對你的建置驗證。發行前仍須以同一候選建置重跑完整檢查與 native／UI 測試。Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦仍未驗證，詳見[驗證界線](docs/GIT-SAFETY.md#verification-scope)。
+v0.4.0 發行建置已通過 26 個測試檔／400 個案例、31 項打包桌面檢查、9 項打包 Git 檢查及 4 組免安裝生命週期檢查，沒有跳過項目；安裝版更新中繼資料亦已核對實際安裝包。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。詳見[本版驗證](docs/RELEASE-0.4.0.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)；自行建置仍須重新驗證。
 
 ### 可選的 web 開發模式
 
@@ -195,13 +195,13 @@ Web 模式預設為 `http://127.0.0.1:4317`，需要保留終端。這是開發�
 
 原始碼位於**儲存庫根目錄**，與本 README 及 `package.json` 放在一起。發布前請檢查內容：`.local/`、私人資料庫、`.env` 檔案、憑證、私人截圖與產生的執行檔都不應納入版本控制。執行檔應放在 Release assets。
 
-1. 在 `release.config.cjs` 設定真實的**公開 GitHub 儲存庫**。原始碼中的 owner/repo 刻意留空；請填入自己的值，不要直接使用下列預留文字：
+1. 確認 `release.config.cjs` 的**公開 GitHub 儲存庫**。正式建置使用 `yikeugene/AI-project-hub`；分支專案應改為自己的發行儲存庫：
 
    ```js
    module.exports = {
      github: {
-       owner: '<GITHUB_OWNER>',
-       repo: '<GITHUB_REPOSITORY>',
+       owner: 'yikeugene',
+       repo: 'AI-project-hub',
      },
    };
    ```

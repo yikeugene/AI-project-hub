@@ -44,3 +44,12 @@ CREATE TABLE device_outbox (
 );
 PRAGMA user_version = 2;
 `;
+
+/** Only the v3 management profile was attached. Historical rows are retained, never revived. */
+export const MULTI_GROUP_MIGRATION = `
+ALTER TABLE relay_profiles ADD COLUMN attached INTEGER NOT NULL DEFAULT 0 CHECK(attached IN (0,1));
+ALTER TABLE relay_profiles ADD COLUMN label TEXT NOT NULL DEFAULT '';
+UPDATE relay_profiles SET attached=1 WHERE id=(SELECT active_profile FROM device_installation WHERE singleton=1);
+ALTER TABLE project_publications ADD COLUMN published_at TEXT;
+PRAGMA user_version = 4;
+`;

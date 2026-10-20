@@ -82,7 +82,10 @@ export function useDevices() {
     sequence.current++;
     try {
       const next = await operation();
-      if (alive.current) { setState(next); setError(null); setLoading(false); }
+      // A mutation may target a non-selected group. Only the installation-level read
+      // determines which group's management state belongs in the shell.
+      const selected = await deviceApi.state();
+      if (alive.current) { setState(selected); setError(null); setLoading(false); }
       return next;
     } catch (err) {
       // A lost pairing response may have persisted pairingPending. Recover the local state.
@@ -104,32 +107,33 @@ export function useDevices() {
 export type DeviceController = ReturnType<typeof useDevices>;
 
 /** Reads cached policy/status only. Cloud refresh and mutations are explicit user actions. */
-export function useGovernance(networkId: string | null) {
+export function useGovernance(profileId: string | null) {
   const locale = useLocale();
   const [snapshot, setSnapshot] = useState<{ scope: string | null; state: GovernanceState } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const sequence = useRef(0);
-  const scope = useRef(networkId); scope.current = networkId;
+  const scope = useRef(profileId); scope.current = profileId;
   const mutation = useRef(false);
   const alive = useRef(true);
   const reload = useCallback(async () => {
-    if (mutation.current) return;
+    if (mutation.current || !alive.current || scope.current !== profileId) return;
     const current = ++sequence.current;
-    const expectedScope = networkId;
+    const expectedScope = profileId;
+    if (!expectedScope) { setSnapshot(null); setError(null); setLoading(false); return; }
     try {
-      const state = await governanceApi.state();
+      const state = await governanceApi.state(expectedScope);
       if (alive.current && sequence.current === current && scope.current === expectedScope) {
         setSnapshot({ scope: expectedScope, state }); setError(null);
       }
     } catch (err) {
       if (alive.current && sequence.current === current && scope.current === expectedScope) { setSnapshot(null); setError(err); }
     } finally { if (alive.current && sequence.current === current && scope.current === expectedScope) setLoading(false); }
-  }, [networkId]);
+  }, [profileId]);
   const update = useCallback(async (operation: () => Promise<GovernanceState>) => {
-    if (mutation.current) throw new LocalizedError(clientMessages, 'deviceBusy');
+    if (mutation.current || !alive.current || scope.current !== profileId || !profileId) throw new LocalizedError(clientMessages, 'deviceBusy');
     mutation.current = true; sequence.current++;
-    const expectedScope = networkId;
+    const expectedScope = profileId;
     try {
       const state = await operation();
       if (alive.current && scope.current === expectedScope) { setSnapshot({ scope: expectedScope, state }); setError(null); setLoading(false); }
@@ -139,7 +143,7 @@ export function useGovernance(networkId: string | null) {
       if (scope.current === expectedScope) await reload();
       throw err;
     } finally { mutation.current = false; }
-  }, [networkId, reload]);
+  }, [profileId, reload]);
   useEffect(() => {
     alive.current = true; setSnapshot(null); setError(null); setLoading(true);
     void reload();
@@ -148,7 +152,7 @@ export function useGovernance(networkId: string | null) {
     document.addEventListener('visibilitychange', visible);
     return () => { alive.current = false; sequence.current++; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
   }, [reload]);
-  return { state: snapshot?.scope === networkId ? snapshot.state : null, loading, error: errorMessage(error, locale), reload, update };
+  return { state: snapshot?.scope === profileId ? snapshot.state : null, loading, error: errorMessage(error, locale), reload, update };
 }
 export type GovernanceController = ReturnType<typeof useGovernance>;
 
@@ -167,39 +171,51 @@ export function useNow(interval = 15_000) {
 /** Call with a stable, scoped loader; an old device/box response cannot replace a new one. */
 export function useDeviceResource<T>(load: () => Promise<T>) {
   const locale = useLocale();
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<{ load: typeof load; data: T | null; error: unknown; loading: boolean } | null>(null);
   const sequence = useRef(0);
+  const scope = useRef(load); scope.current = load;
+  const alive = useRef(true);
   const reload = useCallback(async () => {
+    if (!alive.current || scope.current !== load) return;
     const current = ++sequence.current;
-    try { const next = await load(); if (current === sequence.current) { setData(next); setError(null); } }
-    catch (err) { if (current === sequence.current) setError(err); }
-    finally { if (current === sequence.current) setLoading(false); }
+    const valid = () => alive.current && scope.current === load && current === sequence.current;
+    try {
+      const data = await load();
+      if (valid()) setSnapshot({ load, data, error: null, loading: false });
+    } catch (error) {
+      if (valid()) setSnapshot(previous => ({ load, data: previous?.load === load ? previous.data : null, error, loading: false }));
+    }
   }, [load]);
   useEffect(() => {
-    setData(null); setError(null); setLoading(true);
+    alive.current = true;
+    setSnapshot({ load, data: null, error: null, loading: true });
     void reload();
     const timer = window.setInterval(() => { if (!document.hidden) void reload(); }, 15_000);
     const visible = () => { if (!document.hidden) void reload(); };
     document.addEventListener('visibilitychange', visible);
-    return () => { sequence.current++; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [reload]);
-  return { data, loading, error: errorMessage(error, locale), reload };
+    return () => { alive.current = false; sequence.current++; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [load, reload]);
+  const current = snapshot?.load === load ? snapshot : null;
+  return { data: current?.data ?? null, loading: current?.loading ?? true, error: errorMessage(current?.error, locale), reload };
 }
 
-export function useAction() {
+export function useAction(scope?: unknown) {
   const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const running = useRef(false);
+  const owner = useRef(scope); owner.current = scope;
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => { setError(null); }, [scope]);
   const run = useCallback(async <T,>(action: () => Promise<T>): Promise<{ ok: true; value: T } | { ok: false }> => {
-    if (running.current) return { ok: false };
+    if (running.current || !alive.current) return { ok: false };
+    const expected = owner.current;
     running.current = true;
     setBusy(true); setError(null);
     try { return { ok: true, value: await action() }; }
-    catch (err) { setError(err); return { ok: false }; }
-    finally { running.current = false; setBusy(false); }
+    catch (err) { if (alive.current && owner.current === expected) setError(err); return { ok: false }; }
+    finally { running.current = false; if (alive.current) setBusy(false); }
   }, []);
   return { busy, error: errorMessage(error, locale), setError, run };
 }

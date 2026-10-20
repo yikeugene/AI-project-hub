@@ -20,8 +20,8 @@ export class SyncWorker {
   private stopped = false;
   private nextAt = 0;
   private failures = 0;
+  // A DeviceService worker is permanently bound to one profile; cursor/backoff never follow management selection.
   private cursor: string | null = null;
-  private cursorProfile: string | null = null;
   constructor(private repository: DeviceStore, private session: () => SyncSession | null, private current: (session: SyncSession) => boolean, private afterSync?: () => Promise<void>) {}
   start() {
     if (this.timer || this.stopped) return;
@@ -36,7 +36,7 @@ export class SyncWorker {
     this.running = this.tick(controller.signal).finally(() => { this.running = undefined; if (this.controller === controller) this.controller = undefined; });
     return this.running;
   }
-  async interrupt() { this.controller?.abort(); await this.running; this.cursor = null; this.cursorProfile = null; }
+  async interrupt() { this.controller?.abort(); await this.running; this.cursor = null; }
   async stop() { this.stopped = true; if (this.timer) clearInterval(this.timer); await this.interrupt(); }
   private async tick(signal: AbortSignal) {
     let session: SyncSession | null = null;
@@ -95,7 +95,6 @@ export class SyncWorker {
           this.repository.removeJob(profile.id, item);
         }
       }
-      if (this.cursorProfile !== profile.id) { this.cursor = null; this.cursorProfile = profile.id; }
       for (let page = 0; page < 5; page++) {
         const manifest = await relay.manifest(token, this.cursor, signal); guard();
         const entries = manifest.entries.map(value => manifestEntrySchema.parse(value));

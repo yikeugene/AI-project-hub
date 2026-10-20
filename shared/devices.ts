@@ -62,7 +62,8 @@ export interface ProposalPreview {
   revision: number; baseRevision: number; changes: ChangeEntry[]; canApply: boolean; reason: string | null;
   reasonCode?: ErrorCode; reasonParams?: MessageParams;
 }
-export const pairInputSchema = z.object({ url: z.string().max(250), publishableKey: z.string().min(20).max(2048), name: deviceNameSchema, code: tokenSchema, confirm: z.literal(true) }).strict();
+export const groupLabelSchema = z.string().trim().min(1).max(120);
+export const pairInputSchema = z.object({ url: z.string().max(250), publishableKey: z.string().min(20).max(2048), name: deviceNameSchema, code: tokenSchema, label: groupLabelSchema.optional(), confirm: z.literal(true) }).strict();
 export type PairInput = z.infer<typeof pairInputSchema>;
 export const pairResultSchema = z.object({ networkId: uuid, device: deviceRecordSchema }).strict();
 export type PairResult = z.infer<typeof pairResultSchema>;
@@ -70,7 +71,26 @@ export interface PairAttempt { attemptId: string; deviceId: string; deviceToken:
 export interface RelayConfiguration { url: string; publishableKey: string }
 export interface Invitation { code: string; expiresAt: string; url: string; publishableKey: string }
 export type ConnectionStatus = 'disabled' | 'unconfigured' | 'idle' | 'syncing' | 'online' | 'error' | 'revoked' | 'locked';
+export const PROFILE_HEADER = 'X-Hub-Profile-Id';
+export interface DeviceGroup {
+  id: string; label: string; url: string; networkId: string | null; deviceId: string;
+  enabled: boolean; paired: boolean; pairingPending: boolean; connection: ConnectionStatus;
+  lastSyncAt: string | null; lastError: string | null;
+}
+export interface GroupShareInput { profileId: string; enabled: boolean; memoryFields: MemoryField[] }
+export interface GroupSharingPreview {
+  projectId: string; revision: number; digest: string;
+  groups: { group: DeviceGroup; preview: SharedPreview }[];
+}
+export interface SharedWorkspaceItem {
+  profileId: string; groupLabel: string; ownerDeviceId: string; ownerName: string;
+  projectId: string; version: number; project: SharedProject; owned: boolean; pending: boolean;
+  publishedAt: string | null; receivedAt: string | null; lastSyncAt: string | null;
+}
+export interface SharedWorkspaceState { groups: DeviceGroup[]; items: SharedWorkspaceItem[] }
+export interface SummaryDownload { filename: string; text: string }
 export interface DeviceState {
+  installationId: string; profileId: string | null; groups: DeviceGroup[];
   localDevice: { id: string; name: string };
   desktopAvailable: boolean; enabled: boolean; paired: boolean; pairingPending: boolean;
   connection: ConnectionStatus; configuration: RelayConfiguration | null; networkId: string | null;

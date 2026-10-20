@@ -62,7 +62,7 @@ export async function createHubRuntime(options: RuntimeOptions) {
   const governance = new GovernanceService(store, devices);
   const git = new GitApprovalService(store, devices, governance, options.gitEngine);
   governance.onRefresh((client, context) => git.sync(client, context));
-  devices.onSynced(async () => { await governance.refresh(); });
+  devices.onSynced(async profileId => { await governance.refresh(profileId); });
   const { app, refreshAll, waitForIdle } = createApp({ ...options.appOptions, store, dataDir, mode, deviceService: devices,
     gitService: git, governanceService: governance,
     onActivity: (kind, state) => { governance.record(kind, state); options.appOptions?.onActivity?.(kind, state); } });
@@ -125,7 +125,7 @@ export async function createHubRuntime(options: RuntimeOptions) {
   function setActivityMode(mode: 'foreground' | 'background') { if (!closing) governance.setActivityMode(mode); }
   function resumed() {
     if (closing) return;
-    void devices.worker.syncNow();
+    void devices.syncAll().catch(() => {});
     void refreshAll().catch(() => {});
   }
   return { origin, port: actualPort, dataDir, store, devices, governance, git, refreshAll, setActivityMode, resumed, stop };

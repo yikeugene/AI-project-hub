@@ -16,10 +16,12 @@ export function GovernanceSettings({ governance, devices, projects, blocked, onD
   governance: GovernanceController; devices: DeviceState; projects: Project[]; blocked: boolean;
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; onChange: () => Promise<void>;
 }) {
-  const t = useT(governanceMessages); const action = useAction();
-  const [roleChange, setRoleChange] = useState<{ id: string; name: string; role: DeviceRole } | null>(null);
+  const t = useT(governanceMessages); const action = useAction(devices.profileId);
+  const [draftProfile] = useState(devices.profileId);
+  const scope = useRef(devices.profileId); scope.current = devices.profileId;
+  const [roleChange, setRoleChange] = useState<{ profileId: string; id: string; name: string; role: DeviceRole } | null>(null);
   const [draft, setDraft] = useState<StatusSharingPolicy | null>(null);
-  const [preview, setPreview] = useState<{ value: StatusSharingPreview; identities: string } | null>(null);
+  const [preview, setPreview] = useState<{ profileId: string; value: StatusSharingPreview; identities: string } | null>(null);
   const [confirmSharing, setConfirmSharing] = useState(false);
   const [notice, setNotice] = useState<'roleSaved' | 'refreshSaved' | 'saved' | ''>('');
   const sequence = useRef(0); const alive = useRef(true);
@@ -29,16 +31,16 @@ export function GovernanceSettings({ governance, devices, projects, blocked, onD
   const dirty = (!!draft && canonicalSharing(draft) !== canonicalSharing(saved)) || !!preview;
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(action.busy); }, [action.busy, onBusyChange]);
-  const verified = hasCurrentGovernance(governance.state, devices) && !governance.error;
+  const verified = draftProfile === devices.profileId && hasCurrentGovernance(governance.state, devices) && !governance.error;
   // Local consent must remain editable while offline or an oversized publication is withdrawn.
-  const enabled = devices.desktopAvailable && devices.paired && !devices.pairingPending
+  const enabled = draftProfile === devices.profileId && !!devices.profileId && devices.desktopAvailable && devices.paired && !devices.pairingPending
     && governance.state?.policy?.networkId === devices.networkId
     && governance.state.policy.deviceId === devices.localDevice.id;
   const admin = verified && isNetworkOnline(devices) && governance.state?.policy?.role === 'admin';
   const baseShared = new Set(devices.sharing.filter(item => item.enabled).map(item => item.projectId));
   // Consent binds project identities, not continuously changing task counts or timestamps.
   const identities = JSON.stringify(projects.filter(project => baseShared.has(project.id)).map(project => ({ id: project.id, name: project.name })).sort((a, b) => a.id.localeCompare(b.id)));
-  const previewStale = !!preview && (preview.identities !== identities || canonicalSharing(preview.value.policy) !== canonicalSharing(policy));
+  const previewStale = !!preview && (preview.profileId !== devices.profileId || preview.identities !== identities || canonicalSharing(preview.value.policy) !== canonicalSharing(policy));
   const invalidate = () => { sequence.current++; setPreview(null); setConfirmSharing(false); setNotice(''); action.setError(null); };
   const setProjectField = (projectId: string, field: 'git' | 'tasks', value: boolean) => {
     invalidate();
@@ -46,28 +48,29 @@ export function GovernanceSettings({ governance, devices, projects, blocked, onD
     setDraft({ ...policy, projects: [...policy.projects.filter(item => item.projectId !== projectId), { ...existing, [field]: value }].filter(item => item.git || item.tasks) });
   };
   const refresh = async () => {
-    const result = await action.run(() => governance.update(governanceApi.refresh));
-    if (result.ok && alive.current) setNotice('refreshSaved');
+    const profileId = devices.profileId; if (!profileId || blocked || action.busy) return;
+    const result = await action.run(() => governance.update(() => governanceApi.refresh(profileId)));
+    if (result.ok && alive.current && scope.current === profileId) setNotice('refreshSaved');
   };
   const saveRole = async () => {
-    if (!roleChange || !admin || blocked || action.busy) return;
+    if (!roleChange || roleChange.profileId !== devices.profileId || !admin || blocked || action.busy) return;
     const captured = roleChange;
-    const result = await action.run(() => governance.update(() => governanceApi.role(captured.id, captured.role)));
-    if (!alive.current) return;
+    const result = await action.run(() => governance.update(() => governanceApi.role(captured.profileId, captured.id, captured.role)));
+    if (!alive.current || scope.current !== captured.profileId) return;
     if (result.ok) { setRoleChange(null); setNotice('roleSaved'); await onChange(); }
   };
   const prepareSharing = async () => {
     if (!enabled || blocked || action.busy) return;
-    invalidate(); const current = ++sequence.current;
+    invalidate(); const current = ++sequence.current; const profileId = devices.profileId!;
     const captured = { activity: policy.activity, projects: policy.projects.filter(item => baseShared.has(item.projectId) && (item.git || item.tasks)) };
-    const result = await action.run(() => governanceApi.previewSharing(captured));
-    if (result.ok && alive.current && current === sequence.current) { setDraft(result.value.policy); setPreview({ value: result.value, identities }); }
+    const result = await action.run(() => governanceApi.previewSharing(profileId, captured));
+    if (result.ok && alive.current && current === sequence.current && scope.current === profileId) { setDraft(result.value.policy); setPreview({ profileId, value: result.value, identities }); }
   };
   const saveSharing = async () => {
     if (!preview || previewStale || !enabled || blocked || action.busy) return;
-    const captured = preview.value; const current = ++sequence.current;
-    const result = await action.run(() => governance.update(() => governanceApi.saveSharing(captured.policy, captured.digest)));
-    if (!alive.current || current !== sequence.current) return;
+    const profileId = preview.profileId; const captured = preview.value; const current = ++sequence.current;
+    const result = await action.run(() => governance.update(() => governanceApi.saveSharing(profileId, captured.policy, captured.digest)));
+    if (!alive.current || current !== sequence.current || scope.current !== profileId) return;
     setConfirmSharing(false); setPreview(null);
     if (result.ok) { setDraft(null); setNotice('saved'); await onChange(); }
     // Failure leaves the choices intact, but never reuses the consent digest.
@@ -80,7 +83,7 @@ export function GovernanceSettings({ governance, devices, projects, blocked, onD
       <ErrorNotice message={governance.error || governance.state?.error || ''} />
       {governance.loading ? <Loading label={t('loading')} /> : !verified ? <Notice warning>{t('unavailable')}</Notice> : <>
         <p className="governance-role"><ShieldCheck size={16} aria-hidden="true" /><strong>{t('currentRole', { role: t(governance.state!.policy!.role) })}</strong><span className="field-hint">{t('policyVersion', { epoch: governance.state!.policy!.epoch })}</span></p>
-        <ul className="governance-role-list">{roles.map(item => <li key={item.deviceId}><div><strong>{deviceName(item.deviceId)}</strong>{item.deviceId === devices.localDevice.id && <span className="field-hint"> {t('thisDevice')}</span>}<span className="device-id">{item.deviceId}</span></div><span className="badge status-archived"><ShieldCheck size={13} aria-hidden="true" />{t(item.role)}</span><Button disabled={!admin || blocked || action.busy} onClick={() => { action.setError(null); setNotice(''); setRoleChange({ id: item.deviceId, name: deviceName(item.deviceId), role: item.role === 'admin' ? 'member' : 'admin' }); }}>{t(item.role === 'admin' ? 'assignMember' : 'assignAdmin')}</Button></li>)}</ul>
+        <ul className="governance-role-list">{roles.map(item => <li key={item.deviceId}><div><strong>{deviceName(item.deviceId)}</strong>{item.deviceId === devices.localDevice.id && <span className="field-hint"> {t('thisDevice')}</span>}<span className="device-id">{item.deviceId}</span></div><span className="badge status-archived"><ShieldCheck size={13} aria-hidden="true" />{t(item.role)}</span><Button disabled={!admin || blocked || action.busy} onClick={() => { action.setError(null); setNotice(''); setRoleChange({ profileId: devices.profileId!, id: item.deviceId, name: deviceName(item.deviceId), role: item.role === 'admin' ? 'member' : 'admin' }); }}>{t(item.role === 'admin' ? 'assignMember' : 'assignAdmin')}</Button></li>)}</ul>
       </>}
       <p className="field-hint">{t('adminOnly')}</p>
     </section>

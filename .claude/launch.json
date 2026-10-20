@@ -18,6 +18,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--import", "tsx", "scripts/git-ui-preview.ts"],
       "port": 4319
+    },
+    {
+      "name": "Shared workspace isolated preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "scripts/shared-workspace-preview.ts"],
+      "port": 4320
     }
   ]
 }

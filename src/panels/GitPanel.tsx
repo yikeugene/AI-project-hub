@@ -46,25 +46,25 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
   const [targetBranch, setTargetBranch] = useState('');
   const [remote, setRemote] = useState('');
   const [remoteBranch, setRemoteBranch] = useState('');
-  const [preview, setPreview] = useState<GitPreview | null>(null);
+  const [preview, setPreview] = useState<(GitPreview & { profileId: string }) | null>(null);
   const [reviewer, setReviewer] = useState('');
   const [submitConfirm, setSubmitConfirm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [staleNotice, setStaleNotice] = useState(false);
   const [requestVersion, setRequestVersion] = useState(0);
   const [requestBusy, setRequestBusy] = useState(false);
-  const action = useAction();
+  const action = useAction(devices?.profileId);
   const readSequence = useRef(0); const diffSequence = useRef(0); const planSequence = useRef(0);
   const alive = useRef(true);
-  const networkScope = devices?.networkId ?? null;
-  const scopeRef = useRef(networkScope); scopeRef.current = networkScope;
+  const profileScope = devices?.profileId ?? null;
+  const scopeRef = useRef(profileScope); scopeRef.current = profileScope;
   const busy = action.busy || requestBusy || readBusy || diffBusy;
   const dirty = !!preview || !!message || identityEdited || !!newBranch || !!targetBranch || !!remote || !!remoteBranch || !!unstagedPaths.length || !!stagedPaths.length;
   useBeforeUnload(dirty || busy);
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; readSequence.current++; diffSequence.current++; planSequence.current++; }; }, []);
-  useEffect(() => { planSequence.current++; setPreview(null); setSubmitConfirm(false); setReviewer(''); }, [networkScope]);
+  useEffect(() => { planSequence.current++; setPreview(null); setSubmitConfirm(false); setReviewer(''); }, [profileScope]);
 
   const readDetails = useCallback(async (): Promise<GitDetails | null> => {
     const sequence = ++readSequence.current;
@@ -89,7 +89,7 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
   const canWrite = canManage && !!git?.isRepo && !readError && !readBusy && !details?.unsupportedReasons.length && !details?.operationState && !git.conflictCount;
   const reviewers = governanceValid ? (governance.state?.policy?.roles ?? []).filter(role => role.role === 'admin' && (role.deviceId === devices?.localDevice.id || devices?.devices.some(device => device.id === role.deviceId && !device.revokedAt))) : [];
   const reviewerValid = reviewers.some(item => item.deviceId === reviewer);
-  const previewExpired = !!preview && Date.parse(preview.expiresAt) <= now;
+  const previewExpired = !!preview && (preview.profileId !== profileScope || Date.parse(preview.expiresAt) <= now);
   const invalidate = () => { planSequence.current++; setPreview(null); setSubmitConfirm(false); setSubmitted(false); setStaleNotice(false); action.setError(null); };
   const clearDraft = () => {
     invalidate(); setMessage(''); setIdentityEdited(false); setAuthorName(details?.identity.name ?? ''); setAuthorEmail(details?.identity.email ?? '');
@@ -118,21 +118,21 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
   };
   const validOperation = gitOperationSchema.safeParse(operation());
   const prepare = async () => {
-    if (!canWrite || busy) return;
-    invalidate(); const sequence = ++planSequence.current; const scope = networkScope;
+    if (!profileScope || !canWrite || busy) return;
+    invalidate(); const sequence = ++planSequence.current; const scope = profileScope;
     const result = await action.run(async () => {
       const parsed = gitOperationSchema.safeParse(operation());
       if (!parsed.success) throw new LocalizedError(gitMessages, 'invalidOperation');
-      return gitApi.preview(project.id, parsed.data);
+      return gitApi.preview(scope, project.id, parsed.data);
     });
     if (!alive.current || sequence !== planSequence.current || scopeRef.current !== scope) return;
-    if (result.ok) setPreview(result.value);
+    if (result.ok) setPreview({ ...result.value, profileId: scope });
     else { setStaleNotice(true); await readDetails(); }
   };
   const submit = async () => {
-    if (!preview || !canWrite || !reviewerValid || Date.parse(preview.expiresAt) <= Date.now() || busy) return;
-    const captured = preview; const scope = networkScope; const sequence = ++planSequence.current;
-    const result = await action.run(() => gitApi.submit(captured.id, reviewer, captured.digest));
+    if (!preview || preview.profileId !== profileScope || !canWrite || !reviewerValid || Date.parse(preview.expiresAt) <= Date.now() || busy) return;
+    const captured = preview; const scope = captured.profileId; const sequence = ++planSequence.current;
+    const result = await action.run(() => gitApi.submit(scope, captured.id, reviewer, captured.digest));
     if (!alive.current || sequence !== planSequence.current || scopeRef.current !== scope) return;
     setSubmitConfirm(false); setPreview(null); setRequestVersion(value => value + 1);
     if (result.ok) { clearDraft(); setSubmitted(true); }
@@ -188,7 +188,7 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
       {!submitConfirm && <ErrorNotice message={action.error} />}
       <section className="detail-section"><h3><GitCommitHorizontal size={17} aria-hidden="true" />{t('recentCommits')}</h3><p className="field-hint">{t('commitTimeHint')}</p>{git.commits.length ? <div className="commit-list">{git.commits.map(commit => <div className="commit-row" key={commit.hash}><GitCommitHorizontal size={16} aria-hidden="true" /><code title={commit.hash}>{commit.shortHash}</code><strong>{commit.subject}</strong><time dateTime={commit.date}>{formatDate(commit.date, true, locale)}</time></div>)}</div> : <p className="quiet-empty">{t('noCommits')}</p>}</section>
     </>}
-    <GitRequests key={`${project.id}:${networkScope}`} projectId={project.id} networkId={networkScope} canManage={canManage} canExecute={canWrite} blocked={action.busy || readBusy || diffBusy} version={requestVersion} onBusyChange={setRequestBusy} onExecuted={afterExecution} />
+    <GitRequests key={`${project.id}:${profileScope}`} projectId={project.id} profileId={profileScope} canManage={canManage} canExecute={canWrite} blocked={action.busy || readBusy || diffBusy} version={requestVersion} onBusyChange={setRequestBusy} onExecuted={afterExecution} />
     <p className="field-hint">{t('readonlyHint')}</p>
     {submitConfirm && preview && <ConfirmDialog title={t('submitTitle')} confirmLabel={t('submitConfirm')} busy={action.busy} confirmDisabled={!canWrite || !reviewerValid || previewExpired} error={action.error} onClose={() => setSubmitConfirm(false)} onConfirm={() => { void submit(); }}><p>{t('submitDescription')}</p><p className="preserve-lines">{t('reviewer')}: <strong>{reviewer}</strong></p><GitReview summary={preview.summary} digest={preview.digest} expiresAt={preview.expiresAt} /><Notice warning>{t('previewPrivacy')}</Notice></ConfirmDialog>}
   </section>;

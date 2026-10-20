@@ -12,6 +12,11 @@ import { Field, Loading, PriorityBadge, StatusBadge, TaskBadge } from '../src/co
 import { formatDate, relativeDate } from '../src/hooks';
 import { I18nProvider } from '../src/i18n';
 import { shellCatalog, type ShellMessage } from '../src/locales/shell';
+import { workspaceMessages } from '../src/locales/panels-workspace';
+import { sharingMessages } from '../src/locales/panels-sharing';
+import { SharedSummaryDetail, SharedWorkspaceView } from '../src/panels/SharedWorkspacePanel';
+import { MemoryShareFields } from '../src/panels/GroupSharingSettings';
+import type { SharedWorkspaceItem } from '../shared/devices';
 
 const catalogModules = import.meta.glob(['../src/locales/*.ts', '../shared/locales/*.ts', '../shared/messages.ts'], { eager: true });
 const render = (content: ReactNode, locale?: Locale) => renderToStaticMarkup(locale ? createElement(I18nProvider, { initialLocale: locale, children: content }) : content);
@@ -130,6 +135,23 @@ describe('English default and Traditional Chinese rendering', () => {
       expect(markup).toContain(project.name);
       expect(markup).toContain(project.path);
       expect(markup).toContain(project.nextAction);
+    }
+  });
+  it('localizes shared workspace sources, empty states and memory selection without translating content', () => {
+    const item: SharedWorkspaceItem = { profileId: 'group-identity', groupLabel: 'User 群組', ownerDeviceId: 'owner-identity', ownerName: 'User 設備', projectId: project.id, version: 8, project: { name: project.name, status: 'active', priority: 'normal', stage: project.stage, nextAction: project.nextAction, memory: { status: 'User 狀態', notes: '' }, revision: 1 }, owned: true, pending: true, publishedAt: null, receivedAt: null, lastSyncAt: null };
+    for (const locale of ['en', 'zh-TW'] as const) {
+      const markup = render(createElement(SharedSummaryDetail, { item }), locale);
+      for (const key of ['readonly', 'group', 'owner', 'nextAction', 'memory', 'pending', 'notPublished', 'sharedEmpty'] as const) expect(markup).toContain(translate(workspaceMessages, locale, key));
+      for (const content of [item.groupLabel, item.ownerName, item.project.name, item.project.nextAction, 'User 狀態', 'group-identity', 'owner-identity']) expect(markup).toContain(content);
+      const fields = render(createElement(MemoryShareFields, { fields: ['status'], disabled: false, onChange: () => {} }), locale);
+      expect(fields).toContain(translate(sharingMessages, locale, 'selectAll'));
+      expect(fields).toContain(getMemoryLabels(locale).status);
+      expect(fields).toContain('aria-checked="mixed"');
+      const empty = render(createElement(SharedWorkspaceView, { data: { groups: [], items: [] }, profileId: '', query: '', loading: false, error: '', onFilter: () => {}, onSearch: () => {}, onSelect: () => {}, onReload: async () => {}, onSettings: () => {}, onBusyChange: () => {} }), locale);
+      expect(empty).toContain(translate(workspaceMessages, locale, 'noGroups'));
+      expect(empty).toContain(translate(workspaceMessages, locale, 'settings'));
+      const shell = render(createElement(App), locale);
+      expect(shell).toContain(translate(shellCatalog, locale, 'nav.shared'));
     }
   });
   it('formats missing and invalid dates in the requested language without changing inputs', () => {

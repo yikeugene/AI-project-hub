@@ -35,15 +35,14 @@ export class GitApprovalService {
     this.engine = { prepare: prepareGitOperation, execute: executeGitOperation, details: readGitDetails, diff: readGitDiff, recover: acknowledgeGitOperation, ...engine };
     this.repository.recover();
   }
-  private profile() {
+  private profile(profileId: string) {
     if (this.closing) throw appError(503, 'device.closing');
     if (!this.devices.state().desktopAvailable) throw appError(400, 'device.desktopRequired');
-    const profile = this.devices.repository.profile();
-    if (!profile?.networkId || profile.pairingPending) throw appError(409, 'device.pairRequired');
-    return { ...profile, networkId: profile.networkId };
+    const profile = this.devices.requiredProfile(profileId);
+    return { ...profile, networkId: profile.networkId! };
   }
-  private owned(id: string) {
-    const profile = this.profile(), row = this.repository.get(id);
+  private owned(profileId: string, id: string) {
+    const profile = this.profile(profileId), row = this.repository.get(id);
     if (row.profileId !== profile.id || row.networkId !== profile.networkId || row.deviceId !== profile.deviceId) throw appError(404, 'gitops.notFound');
     return row;
   }
@@ -63,12 +62,14 @@ export class GitApprovalService {
     try { return await this.engine.diff(this.store.getProject(projectId).path, input); }
     catch (error) { throw appError(400, gitFailureCode(error)); }
   }
-  async preview(projectId: string, operation: GitOperation) {
-    const profile = this.profile(), project = this.store.getProject(projectId);
+  async preview(profileId: string, projectId: string, operation: GitOperation) {
+    const profile = this.profile(profileId), project = this.store.getProject(projectId);
+    const captured = this.devices.captureProfile(profileId);
     let plan;
     try { plan = await this.engine.prepare(project.path, gitOperationSchema.parse(operation), { projectId, projectName: project.name }); }
     catch (error) { throw appError(400, gitFailureCode(error)); }
-    if (this.profile().id !== profile.id) throw appError(409, 'proposal.connectionChanged');
+    captured.assertCurrent();
+    if (this.closing) throw appError(503, 'device.closing');
     if (this.repository.fenced(plan.repositoryKey)) throw appError(409, 'gitops.unknown');
     const createdAt = this.repository.now();
     const preview = gitPreviewSchema.parse({ id: randomUUID(), projectId, operation: plan.operation,
@@ -76,8 +77,8 @@ export class GitApprovalService {
       digest: digestOf(plan, { networkId: profile.networkId, deviceId: profile.deviceId, projectId }) });
     return this.repository.create(preview, plan, profile);
   }
-  async submit(id: string, reviewerDeviceId: string, digest: string) {
-    const row = this.owned(id); this.verifyDigest(row, digest);
+  async submit(profileId: string, id: string, reviewerDeviceId: string, digest: string) {
+    const row = this.owned(profileId, id); this.verifyDigest(row, digest);
     if (Date.parse(row.preview.expiresAt) <= this.repository.clock()) throw appError(409, 'gitops.expired');
     if (row.state !== 'prepared') {
       if (row.submission?.reviewerDeviceId !== reviewerDeviceId) throw appError(409, 'gitops.state');
@@ -89,40 +90,52 @@ export class GitApprovalService {
     const submission = { id, reviewerDeviceId, digest, summary: row.preview.summary, expiresAt: row.preview.expiresAt };
     this.repository.transition(id, 'pending', { submission, error: null }, ['prepared']);
     this.governance.record('git', 'pending');
-    await this.governance.refresh();
-    return this.view(this.owned(id));
+    await this.governance.refresh(profileId);
+    return this.view(this.owned(profileId, id));
   }
-  list(projectId: string) {
+  private visibleProfile(profileId: string | null) {
+    if (!profileId) return null;
+    try { return this.devices.requiredProfile(profileId); }
+    catch (error) {
+      if (error instanceof HttpError && ['device.profileUnavailable', 'device.pairRequired', 'device.revoked'].includes(error.code ?? '')) return null;
+      throw error;
+    }
+  }
+  list(profileId: string | null, projectId: string) {
     const project = this.store.getProject(projectId);
-    const profile = this.devices.repository.profile();
+    const profile = this.visibleProfile(profileId);
     const current = profile ? this.repository.rows(profile.id, projectId) : [];
+    // Recovery is installation-local: another membership cannot remove a repository's uncertainty fence.
     const retained = this.devices.state().desktopAvailable ? this.repository.recovery(projectId, project.path) : [];
     return [...new Map([...retained, ...current].map(row => [row.preview.id, row])).values()].slice(0, 100).map(row => this.view(row));
   }
-  approvals() {
-    const profile = this.devices.repository.profile();
+  approvals(profileId: string | null) {
+    const profile = this.visibleProfile(profileId);
     return profile ? this.repository.inbox(profile.id) : [];
   }
-  async decide(id: string, digest: string, decision: 'approved' | 'rejected', reason: string): Promise<GitApproval> {
-    return this.devices.withGovernance(async (client, context) => {
+  async decide(profileId: string, id: string, digest: string, decision: 'approved' | 'rejected', reason: string): Promise<GitApproval> {
+    this.profile(profileId);
+    return this.devices.withGovernance(profileId, async (client, context) => {
       const result = gitApprovalSchema.parse(await client.decideGit(id, digest, decision, reason));
+      context.assertCurrent();
       if (result.id !== id || result.digest !== digest || result.reviewerDeviceId !== context.deviceId || result.state !== decision) throw appError(409, 'governance.invalid');
       this.repository.applyApproval(context.profileId, result); return result;
     });
   }
-  async cancel(id: string, digest: string) {
-    const row = this.owned(id); this.verifyDigest(row, digest);
+  async cancel(profileId: string, id: string, digest: string) {
+    const row = this.owned(profileId, id); this.verifyDigest(row, digest);
     if (!['prepared', 'pending', 'approved'].includes(row.state)) throw appError(409, 'gitops.state');
     if (!row.submission) this.repository.transition(id, 'cancelled', {}, ['prepared']);
-    else await this.devices.withGovernance(async (client, context) => {
+    else await this.devices.withGovernance(profileId, async (client, context) => {
       if (context.profileId !== row.profileId) throw appError(409, 'proposal.connectionChanged');
       const result = gitApprovalSchema.parse(await client.cancelGit(id, digest));
+      context.assertCurrent();
       this.repository.applyApproval(context.profileId, result);
     });
-    return this.view(this.owned(id));
+    return this.view(this.owned(profileId, id));
   }
-  execute(id: string, digest: string): Promise<GitRequestView> {
-    const row = this.owned(id); this.verifyDigest(row, digest);
+  execute(profileId: string, id: string, digest: string): Promise<GitRequestView> {
+    const row = this.owned(profileId, id); this.verifyDigest(row, digest);
     const existing = this.running.get(id);
     if (existing) return existing;
     if (row.state !== 'approved') throw appError(409, 'gitops.state');
@@ -137,7 +150,7 @@ export class GitApprovalService {
   private async run(row: SavedGitOperation, executionId: string): Promise<GitRequestView> {
     let attempted = false, consumed = false, started = false;
     try {
-      await this.devices.withGovernance(async (client, context) => {
+      await this.devices.withGovernance(row.profileId, async (client, context) => {
         if (context.profileId !== row.profileId || context.networkId !== row.networkId || context.deviceId !== row.deviceId) throw appError(409, 'proposal.connectionChanged');
         const result = gitExecutionResultSchema.parse(await this.engine.execute(row.plan, {
           authorize: async () => {
@@ -172,6 +185,7 @@ export class GitApprovalService {
         this.governance.record('git', result.status === 'succeeded' ? 'succeeded' : result.status === 'unknown' ? 'unknown' : 'failed');
         try {
           await client.reportGit(row.preview.id, executionId, result);
+          context.assertCurrent();
           this.repository.transition(row.preview.id, result.status, { reportPending: false });
         } catch { /* Durable result reporting retries, never the Git operation. */ }
       });
@@ -196,7 +210,10 @@ export class GitApprovalService {
       const row = this.repository.record(captured.preview.id);
       if (row.state === 'pending' && row.submission && !row.approval) {
         if (Date.parse(row.preview.expiresAt) <= this.repository.clock()) { this.repository.transition(row.preview.id, 'expired', { error: 'gitops.expired' }); continue; }
-        try { this.repository.applyApproval(context.profileId, gitApprovalSchema.parse(await client.submitGit(row.submission))); }
+        try {
+          const approval = gitApprovalSchema.parse(await client.submitGit(row.submission));
+          context.assertCurrent(); this.repository.applyApproval(context.profileId, approval);
+        }
         catch (error) {
           if (error instanceof RelayError && !error.retryable && ['invalid', 'denied', 'expired', 'conflict'].includes(error.code)) {
             this.repository.transition(row.preview.id, error.code === 'expired' ? 'expired' : 'failed', { error: `relay.${error.code}` });
@@ -206,6 +223,7 @@ export class GitApprovalService {
       if (row.reportPending && row.executionId && row.result) {
         try {
           await client.reportGit(row.preview.id, row.executionId, row.result);
+          context.assertCurrent();
           this.repository.transition(row.preview.id, row.state, { reportPending: false });
         } catch (error) {
           if (error instanceof RelayError && !error.retryable && ['invalid', 'denied', 'conflict'].includes(error.code)) {
@@ -222,15 +240,17 @@ export class GitApprovalService {
       this.repository.applyApproval(context.profileId, gitApprovalSchema.parse(request));
     }
   }
-  private recoverable(id: string) {
+  private recoverable(profileId: string | null, id: string) {
     if (!this.devices.state().desktopAvailable) throw appError(400, 'device.desktopRequired');
     const row = this.repository.get(id);
-    if (!['unknown', 'partial'].includes(row.state)) return this.owned(id);
-    return row;
+    // Retained uncertain journals are local recovery records, not permission to use old approvals.
+    if (['unknown', 'partial'].includes(row.state)) return row;
+    if (!profileId) throw appError(404, 'gitops.notFound');
+    return this.owned(profileId, id);
   }
-  audit(id: string) { this.recoverable(id); return this.repository.audit(id); }
-  async acknowledge(id: string) {
-    const row = this.recoverable(id);
+  audit(profileId: string | null, id: string) { this.recoverable(profileId, id); return this.repository.audit(id); }
+  async acknowledge(profileId: string | null, id: string) {
+    const row = this.recoverable(profileId, id);
     if (!['unknown', 'partial'].includes(row.state) || this.running.has(id)) throw appError(409, 'gitops.state');
     let details;
     try { details = await this.engine.details(row.plan.directory); await this.engine.recover(row.plan); }

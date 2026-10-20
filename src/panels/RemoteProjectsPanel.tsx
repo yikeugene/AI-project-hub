@@ -14,7 +14,7 @@ import { remoteMessages } from '../locales/panels-remote';
 /** Remote records never enter ProjectDetail or the local Project/Workspace collection. */
 export function RemoteProjectsPanel({ device, state, governance, onCompose }: { device: DeviceRecord; state: DeviceState; governance: GovernanceController; onCompose: (target: ComposeTarget) => void }) {
   const locale = useLocale(); const t = useT(remoteMessages); const memoryLabels = getMemoryLabels(locale);
-  const load = useCallback(() => deviceApi.projects(device.id), [device.id]);
+  const load = useCallback(() => state.profileId ? deviceApi.projects(state.profileId, device.id) : Promise.resolve([]), [state.profileId, device.id]);
   const { data, loading, error, reload } = useDeviceResource(load);
   const [projectId, setProjectId] = useState('');
   useEffect(() => { if (state.lastSyncAt) void reload(); }, [state.lastSyncAt, reload]);

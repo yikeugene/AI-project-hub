@@ -69,12 +69,26 @@ const relayKey = randomBytes(32).toString('hex');
 let fixture, relayServer;
 
 async function apiRaw(peer, path, method = 'GET', body) {
-  return peer.page.evaluate(async ({ path, method, body, token }) => {
-    const response = await fetch(path, { method, headers: { 'content-type': 'application/json', 'X-Hub-Token': token }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const pathname = path.split('?')[0];
+  // This smoke owns exactly one group per peer. Capture it from pairing, never from a
+  // mutable management-group fallback; even optional governance/Git reads bind it.
+  const scoped = pathname !== '/api/devices/pair' && (/^\/api\/(?:devices|messages|governance|git)(?:\/|$)/.test(pathname)
+    || /^\/api\/projects\/[^/]+\/git(?:\/|$)/.test(pathname));
+  if (scoped) assert.ok(peer.profileId, `${peer.name} must have a captured profile before ${method} ${path}`);
+  const response = await peer.page.evaluate(async ({ path, method, body, token, profileId }) => {
+    const headers = { 'content-type': 'application/json', 'X-Hub-Token': token, ...(profileId ? { 'X-Hub-Profile-Id': profileId } : {}) };
+    const response = await fetch(path, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const text = await response.text();
     let data; try { data = JSON.parse(text); } catch { data = text; }
     return { status: response.status, data };
-  }, { path, method, body, token: peer.csrfToken });
+  }, { path, method, body, token: peer.csrfToken, profileId: scoped ? peer.profileId : null });
+  if (pathname === '/api/devices/pair' && method === 'POST' && response.status >= 200 && response.status < 300) {
+    assert.equal(response.data.groups.length, 1, 'Each isolated Git smoke peer must have exactly one joined group.');
+    assert.ok(response.data.profileId);
+    assert.equal(response.data.profileId, response.data.groups[0].id);
+    peer.profileId = response.data.profileId;
+  }
+  return response;
 }
 async function api(peer, path, method = 'GET', body) {
   const response = await apiRaw(peer, path, method, body);
@@ -86,7 +100,7 @@ async function launch(name, relayOrigin) {
   const desktop = await _electron.launch({ executablePath: executable, args: ['--data-dir', dataDir], env, timeout: 45000 });
   const evaluateMain = desktop.evaluate.bind(desktop);
   desktop.evaluate = (...args) => bounded(evaluateMain(...args), `${name} main-process inspector did not answer within 15 seconds.`);
-  const peer = { name, dataDir, desktop, page: null, csrfToken: null, origin: null, closed: false }; peers.push(peer);
+  const peer = { name, dataDir, desktop, page: null, csrfToken: null, profileId: null, origin: null, closed: false }; peers.push(peer);
   peer.page = await desktop.firstWindow({ timeout: 30000 }); peer.page.setDefaultTimeout(30000);
   const evaluatePage = peer.page.evaluate.bind(peer.page);
   peer.page.evaluate = (...args) => bounded(evaluatePage(...args), `${name} renderer/API stage exceeded 60 seconds.`, 60000);
@@ -157,15 +171,16 @@ async function approve(admin, preview) {
   assert.equal(decision.state, 'approved');
 }
 async function checkEncryptedProfile(peer) {
-  const state = await peer.desktop.evaluate(({ safeStorage }, dataDir) => {
+  const state = await peer.desktop.evaluate(({ safeStorage }, { dataDir, profileId }) => {
     const { DatabaseSync } = process.getBuiltinModule('node:sqlite'), path = process.getBuiltinModule('node:path');
     const db = new DatabaseSync(path.join(dataDir, 'hub.sqlite'), { readOnly: true });
     try {
-      const row = db.prepare('SELECT credentials FROM relay_profiles WHERE enabled=1 AND pairing_pending=0').get();
+      const row = db.prepare('SELECT credentials FROM relay_profiles WHERE id=? AND enabled=1 AND pairing_pending=0').get(profileId);
+      if (!row) throw new Error('The captured smoke profile has no active encrypted credential.');
       const cipher = Buffer.from(row.credentials), plain = safeStorage.decryptString(cipher);
       return { decryptable: !!JSON.parse(plain), opaque: !cipher.includes(Buffer.from(plain)), bytes: cipher.length };
     } finally { db.close(); }
-  }, peer.dataDir);
+  }, { dataDir: peer.dataDir, profileId: peer.profileId });
   assert.equal(state.decryptable, true); assert.equal(state.opaque, true); assert.ok(state.bytes > 0);
 }
 async function checkPackagedGuard(resources) {
@@ -208,11 +223,17 @@ try {
   await api(admin, '/api/devices/pair', 'POST', { ...fixture.configuration, code: bootstrap.code, name: 'Native smoke administrator', confirm: true });
   const invitation = await api(admin, '/api/devices/invitation', 'POST', {});
   await api(origin, '/api/devices/pair', 'POST', { ...fixture.configuration, code: invitation.code, name: 'Native smoke origin', confirm: true });
-  for (const peer of [admin, origin]) { await api(peer, '/api/devices/sync', 'POST', {}); await api(peer, '/api/governance/refresh', 'POST', { confirm: true }); await checkEncryptedProfile(peer); }
+  for (const peer of [admin, origin]) {
+    const devices = await api(peer, '/api/devices');
+    assert.equal(devices.profileId, peer.profileId); assert.equal(devices.groups.length, 1);
+    assert.equal(devices.localDevice.id, devices.groups[0].deviceId);
+    assert.notEqual(devices.installationId, devices.localDevice.id, 'The installation and group membership must have distinct identities.');
+    await api(peer, '/api/devices/sync', 'POST', {}); await api(peer, '/api/governance/refresh', 'POST', { confirm: true }); await checkEncryptedProfile(peer);
+  }
   const adminState = await api(admin, '/api/governance'), originState = await api(origin, '/api/governance');
   assert.equal(adminState.policy.role, 'admin'); assert.equal(originState.policy.role, 'member'); assert.equal(originState.available, true);
   const adminId = adminState.policy.deviceId, originId = originState.policy.deviceId;
-  checked('Real CSRF-protected pairing uses delivered SQL/anon roles and OS-encrypted credentials; admin/member roles are enforced');
+  checked('Real CSRF-protected pairing captures each peer’s group separately from its installation; scoped device/governance/Git calls and encrypted-credential checks bind that group, with admin/member roles enforced');
   const project = await api(origin, '/api/projects', 'POST', { path: repository, name: 'Native approved Git' });
   const sharing = await api(origin, '/api/governance/sharing/preview', 'POST', { policy: { activity: true, projects: [] } });
   await api(origin, '/api/governance/sharing', 'POST', { policy: sharing.policy, digest: sharing.digest, confirm: true });

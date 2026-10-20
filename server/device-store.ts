@@ -8,7 +8,7 @@ import { remoteDeviceStatusSchema, statusSharingPolicySchema } from '../shared/g
 import type { CachedSnapshot, ConnectionStatus, DeviceRecord, MessageDecision, MessageReceipt, MessageView, OutboundMessage, RelayConfiguration, RelayMessage, RemoteSnapshot, SharePolicy, SharedPreview, SnapshotPublication } from '../shared/devices.js';
 
 export interface RelayProfile {
-  id: string; configuration: RelayConfiguration; deviceId: string; networkId: string | null;
+  id: string; attached: boolean; label: string; configuration: RelayConfiguration; deviceId: string; networkId: string | null;
   credentials: Uint8Array; pairingPending: boolean; enabled: boolean; connection: ConnectionStatus;
   lastSyncAt: string | null; lastError: string | null;
 }
@@ -22,7 +22,8 @@ export function boundedJson(text: string) {
 export function parseMessage(text: string) { return messagePayloadSchema.parse(boundedJson(text)); }
 const encoded = (value: unknown) => JSON.stringify(value);
 function profileFrom(row: Row): RelayProfile {
-  return { id: String(row.id), configuration: { url: String(row.url), publishableKey: String(row.publishable_key) }, deviceId: String(row.device_id), networkId: row.network_id as string | null,
+  const label = String(row.label || `${new URL(String(row.url)).host} · ${String(row.network_id || row.device_id).slice(0, 8)}/${String(row.device_id).slice(0, 8)}`);
+  return { id: String(row.id), attached: !!row.attached, label, configuration: { url: String(row.url), publishableKey: String(row.publishable_key) }, deviceId: String(row.device_id), networkId: row.network_id as string | null,
     credentials: row.credentials as Uint8Array, pairingPending: !!row.pairing_pending, enabled: !!row.enabled, connection: row.connection as ConnectionStatus,
     lastSyncAt: row.last_sync_at as string | null, lastError: row.last_error as string | null };
 }
@@ -47,34 +48,45 @@ export class DeviceStore {
     const row = this.store.db.prepare('SELECT * FROM relay_profiles WHERE id=?').get(id) as Row | undefined;
     return row ? profileFrom(row) : null;
   }
-  addProfile(configuration: RelayConfiguration, deviceId: string, credentials: Uint8Array): RelayProfile {
+  profiles(): RelayProfile[] {
+    return (this.store.db.prepare('SELECT * FROM relay_profiles WHERE attached=1 ORDER BY created_at,id').all() as Row[]).map(profileFrom);
+  }
+  addProfile(configuration: RelayConfiguration, deviceId: string, credentials: Uint8Array, label = ''): RelayProfile {
     const id = randomUUID();
     this.store.transaction(() => {
-      if (this.profile()) throw appError(409, 'device.disconnectFirst');
-      this.store.db.prepare('INSERT INTO relay_profiles(id,url,publishable_key,device_id,credentials,created_at) VALUES(?,?,?,?,?,?)')
-        .run(id, configuration.url, configuration.publishableKey, deviceId, credentials, this.now());
+      this.store.db.prepare('INSERT INTO relay_profiles(id,url,publishable_key,device_id,credentials,created_at,attached,label) VALUES(?,?,?,?,?,?,1,?)')
+        .run(id, configuration.url, configuration.publishableKey, deviceId, credentials, this.now(), label);
       this.store.db.prepare('UPDATE device_installation SET active_profile=? WHERE singleton=1').run(id);
     });
     return this.profile(id)!;
+  }
+  selectProfile(id: string) {
+    if (!this.profile(id)?.attached) throw appError(409, 'device.profileUnavailable');
+    this.store.db.prepare('UPDATE device_installation SET active_profile=? WHERE singleton=1').run(id);
+  }
+  labelProfile(id: string, label: string) {
+    this.store.db.prepare('UPDATE relay_profiles SET label=? WHERE id=? AND attached=1').run(label, id);
   }
   finishPairing(id: string, networkId: string, credentials: Uint8Array, device: DeviceRecord) {
     this.store.transaction(() => {
       this.store.db.prepare("UPDATE relay_profiles SET network_id=?,credentials=?,pairing_pending=0,enabled=1,connection='idle',last_error=NULL WHERE id=?")
         .run(networkId, credentials, id);
       this.cacheDevices(id, [device]);
+      // An explicit installation rename during a recoverable pairing is queued without changing the retry attempt.
+      const rename = this.store.db.prepare("SELECT payload FROM device_outbox WHERE profile_id=? AND id='rename' AND kind='rename'").get(id) as Row | undefined;
+      if (rename) this.store.db.prepare('UPDATE paired_devices SET name=? WHERE profile_id=? AND id=?').run(JSON.parse(String(rename.payload)).name, id, device.id);
     });
   }
   setEnabled(id: string, enabled: boolean) {
     this.store.db.prepare('UPDATE relay_profiles SET enabled=?,connection=?,last_error=NULL WHERE id=?').run(Number(enabled), enabled ? 'idle' : 'disabled', id);
   }
-  detach() {
-    const profile = this.profile();
+  detach(id: string) {
     this.store.transaction(() => {
-      if (profile) {
-        this.setEnabled(profile.id, false);
-        this.store.db.prepare("UPDATE relay_profiles SET credentials=X'',pairing_pending=0 WHERE id=?").run(profile.id);
+      this.setEnabled(id, false);
+      this.store.db.prepare("UPDATE relay_profiles SET attached=0,credentials=X'',pairing_pending=0 WHERE id=?").run(id);
+      if (this.installation().activeProfile === id) {
+        this.store.db.prepare('UPDATE device_installation SET active_profile=? WHERE singleton=1').run(this.profiles()[0]?.id ?? null);
       }
-      this.store.db.prepare('UPDATE device_installation SET active_profile=NULL WHERE singleton=1').run();
     });
   }
   setConnection(id: string, connection: ConnectionStatus, error: string | null = null, synced = false) {
@@ -84,10 +96,11 @@ export class DeviceStore {
   rename(name: string) {
     this.store.transaction(() => {
       this.store.db.prepare('UPDATE device_installation SET name=? WHERE singleton=1').run(name);
-      const profile = this.profile();
-      if (profile?.networkId) {
-        this.store.db.prepare('UPDATE paired_devices SET name=? WHERE profile_id=? AND id=?').run(name, profile.id, profile.deviceId);
-        this.queue(profile.id, 'rename', 'rename', { name }, true);
+      for (const profile of this.profiles()) {
+        if (profile.connection !== 'revoked' && !this.devices(profile.id).some(device => device.id === profile.deviceId && !!device.revokedAt)) {
+          this.store.db.prepare('UPDATE paired_devices SET name=? WHERE profile_id=? AND id=?').run(name, profile.id, profile.deviceId);
+          this.queue(profile.id, 'rename', 'rename', { name }, true);
+        }
       }
     });
   }
@@ -126,21 +139,23 @@ export class DeviceStore {
   setPolicy(profile: string, policy: SharePolicy) {
     const preview = this.preview(policy.projectId, policy);
     if (preview.error) throw appError(413, 'device.summaryLarge');
-    this.store.transaction(() => {
-      this.store.db.prepare(`INSERT INTO project_shares(profile_id,project_id,enabled,memory_fields) VALUES(?,?,?,?)
-        ON CONFLICT(profile_id,project_id) DO UPDATE SET enabled=excluded.enabled,memory_fields=excluded.memory_fields`)
-        .run(profile, policy.projectId, Number(policy.enabled), encoded([...new Set(policy.memoryFields)]));
-      this.reconcilePublication(profile, policy.projectId);
-      if (!policy.enabled) {
-        const row = this.store.db.prepare('SELECT sharing_json FROM governance_profiles WHERE profile_id=?').get(profile) as Row | undefined;
-        if (row) {
-          const sharing = statusSharingPolicySchema.parse(JSON.parse(String(row.sharing_json)));
-          sharing.projects = sharing.projects.filter(project => project.projectId !== policy.projectId);
-          this.store.db.prepare('UPDATE governance_profiles SET sharing_json=? WHERE profile_id=?').run(JSON.stringify(sharing), profile);
-        }
-      }
-    });
+    this.store.transaction(() => this.writePolicy(profile, policy));
     return preview;
+  }
+  /** Internal write primitive: caller validates previews and owns the transaction. */
+  writePolicy(profile: string, policy: SharePolicy) {
+    this.store.db.prepare(`INSERT INTO project_shares(profile_id,project_id,enabled,memory_fields) VALUES(?,?,?,?)
+      ON CONFLICT(profile_id,project_id) DO UPDATE SET enabled=excluded.enabled,memory_fields=excluded.memory_fields`)
+      .run(profile, policy.projectId, Number(policy.enabled), encoded([...new Set(policy.memoryFields)]));
+    this.reconcilePublication(profile, policy.projectId);
+    if (!policy.enabled) {
+      const row = this.store.db.prepare('SELECT sharing_json FROM governance_profiles WHERE profile_id=?').get(profile) as Row | undefined;
+      if (row) {
+        const sharing = statusSharingPolicySchema.parse(JSON.parse(String(row.sharing_json)));
+        sharing.projects = sharing.projects.filter(project => project.projectId !== policy.projectId);
+        this.store.db.prepare('UPDATE governance_profiles SET sharing_json=? WHERE profile_id=?').run(JSON.stringify(sharing), profile);
+      }
+    }
   }
   reconcilePublication(profile: string, projectId: string): string | null {
     const policy = this.policy(profile, projectId);
@@ -171,7 +186,15 @@ export class DeviceStore {
       .map(row => ({ projectId: String(row.project_id), version: Number(row.version), project: row.payload ? JSON.parse(String(row.payload)) : null }));
   }
   publicationSent(profile: string, projectId: string, version: number) {
-    this.store.db.prepare('UPDATE project_publications SET sent_version=MAX(sent_version,?) WHERE profile_id=? AND project_id=?').run(version, profile, projectId);
+    this.store.db.prepare('UPDATE project_publications SET published_at=CASE WHEN ?>sent_version THEN ? ELSE published_at END,sent_version=MAX(sent_version,?) WHERE profile_id=? AND project_id=?')
+      .run(version, this.now(), version, profile, projectId);
+  }
+  ownSnapshots(profile: string) {
+    // Local edits or withdrawn fields must never leave an older projection visible in the aggregate.
+    this.reconcilePublications(profile);
+    return (this.store.db.prepare('SELECT * FROM project_publications WHERE profile_id=? AND payload IS NOT NULL ORDER BY project_id').all(profile) as Row[])
+      .map(row => ({ projectId: String(row.project_id), version: Number(row.version), project: sharedProjectSchema.parse(boundedJson(String(row.payload))),
+        pending: Number(row.sent_version) < Number(row.version), publishedAt: Number(row.sent_version) >= Number(row.version) ? row.published_at as string | null : null }));
   }
   cachedVersion(profile: string, owner: string, project: string): number {
     const row = this.store.db.prepare('SELECT version FROM remote_snapshots WHERE profile_id=? AND owner_id=? AND project_id=?').get(profile, owner, project) as Row | undefined;
@@ -204,7 +227,7 @@ export class DeviceStore {
   snapshots(profile: string, owner: string): CachedSnapshot[] {
     if (!this.activeDevice(profile, owner)) return [];
     return (this.store.db.prepare('SELECT * FROM remote_snapshots WHERE profile_id=? AND owner_id=? AND payload IS NOT NULL ORDER BY project_id').all(profile, owner) as Row[])
-      .map(row => ({ ownerDeviceId: owner, projectId: String(row.project_id), version: Number(row.version), project: JSON.parse(String(row.payload)), publishedAt: String(row.published_at), receivedAt: String(row.received_at) }));
+      .map(row => ({ ownerDeviceId: owner, projectId: String(row.project_id), version: Number(row.version), project: sharedProjectSchema.parse(boundedJson(String(row.payload))), publishedAt: String(row.published_at), receivedAt: String(row.received_at) }));
   }
   queue(profile: string, id: string, kind: OutboxItem['kind'], payload: unknown, replace = false) {
     const text = encoded(payload);

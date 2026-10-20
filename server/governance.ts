@@ -10,7 +10,7 @@ type Row = Record<string, string | number | null>;
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const emptySharing = (): StatusSharingPolicy => ({ activity: false, projects: [] });
 export class GovernanceService {
-  private running?: Promise<GovernanceState>;
+  private running = new Map<string, Promise<GovernanceState>>();
   private closed = false;
   private mode: AppActivity['mode'] = 'foreground';
   private recent: AppActivity['operations'] = [];
@@ -25,14 +25,27 @@ export class GovernanceService {
     this.store.db.prepare('INSERT OR IGNORE INTO governance_profiles(profile_id) VALUES(?)').run(profileId);
     return this.store.db.prepare('SELECT * FROM governance_profiles WHERE profile_id=?').get(profileId) as Row;
   }
-  sharing(profileId: string) { return statusSharingPolicySchema.parse(JSON.parse(String(this.row(profileId).sharing_json))); }
+  private visibleProfile(profileId: string | null) {
+    if (!profileId) return null;
+    try { return this.devices.requiredProfile(profileId); }
+    catch (error) {
+      if (error instanceof HttpError && ['device.profileUnavailable', 'device.pairRequired', 'device.revoked'].includes(error.code ?? '')) return null;
+      throw error;
+    }
+  }
+  sharing(profileId: string): StatusSharingPolicy {
+    return this.visibleProfile(profileId) ? statusSharingPolicySchema.parse(JSON.parse(String(this.row(profileId).sharing_json))) : emptySharing();
+  }
   cachedPolicy(profileId: string): GovernancePolicy | null {
+    if (!this.visibleProfile(profileId)) return null;
     const value = this.row(profileId).policy_json;
     return value ? governancePolicySchema.parse(JSON.parse(String(value))) : null;
   }
-  state(): GovernanceState {
-    const device = this.devices.state(), profile = this.devices.repository.profile();
-    if (!profile?.networkId || profile.pairingPending) return { available: false, policy: null, error: null, sharing: emptySharing(), statuses: [] };
+  // Only internal read-only callers may omit the profile. HTTP reads pass null when no header is supplied.
+  state(profileId: string | null = this.devices.repository.installation().activeProfile): GovernanceState {
+    const profile = this.visibleProfile(profileId);
+    if (!profile) return { available: false, policy: null, error: null, sharing: emptySharing(), statuses: [] };
+    const device = this.devices.state(profile.id);
     const row = this.row(profile.id), policy = this.cachedPolicy(profile.id);
     const error = typeof row.error_code === 'string' && isErrorCode(row.error_code) ? translateError(row.error_code, this.store.getSettings().locale) : null;
     const statuses = (JSON.parse(String(row.statuses_json)) as unknown[]).map(value => remoteDeviceStatusSchema.parse(value))
@@ -43,18 +56,18 @@ export class GovernanceService {
     return { available: device.desktopAvailable && !!profile.enabled && !!policy && policy.epoch > 0 && policy.roles.some(role => role.role === 'admin') && !error,
       policy, error, sharing: this.sharing(profile.id), statuses };
   }
-  private profile() {
-    const profile = this.devices.repository.profile();
+  private profile(profileId: string) {
+    if (this.closed) throw appError(503, 'device.closing');
     if (!this.devices.state().desktopAvailable) throw appError(400, 'device.desktopRequired');
-    if (!profile?.networkId || profile.pairingPending) throw appError(409, 'device.pairRequired');
-    return profile;
+    return this.devices.requiredProfile(profileId);
   }
-  async refresh(): Promise<GovernanceState> {
-    if (this.closed) return this.state();
-    if (this.running) return this.running;
-    const profile = this.devices.repository.profile();
-    if (!profile?.networkId || !profile.enabled || !this.devices.state().desktopAvailable) return this.state();
-    this.running = this.devices.withGovernance(async (client, context) => {
+  async refresh(profileId: string): Promise<GovernanceState> {
+    const profile = this.profile(profileId);
+    if (!profile.enabled) return this.state(profile.id);
+    const existing = this.running.get(profile.id);
+    if (existing) return existing;
+    const captured = this.devices.captureProfile(profile.id);
+    const work = this.devices.withGovernance(profile.id, async (client, context) => {
       const policy = governancePolicySchema.parse(await client.policy());
       if (policy.networkId !== context.networkId || policy.deviceId !== context.deviceId) throw appError(400, 'governance.invalid');
       context.assertCurrent(); this.row(context.profileId);
@@ -79,17 +92,19 @@ export class GovernanceService {
       this.store.db.prepare('UPDATE governance_profiles SET statuses_json=?,error_code=? WHERE profile_id=?')
         .run(JSON.stringify(statuses), tooLarge ? 'governance.large' : null, context.profileId);
     }).catch(error => {
-      if (this.devices.repository.profile()?.id === profile.id) {
-        const code: ErrorCode = error instanceof HttpError && error.code ? error.code : 'relay.unavailable';
-        this.row(profile.id);
-        this.store.db.prepare('UPDATE governance_profiles SET error_code=? WHERE profile_id=?').run(code, profile.id);
-      }
-    }).then(() => this.state()).finally(() => { this.running = undefined; });
-    return this.running;
+      // A management selection change is irrelevant; a detached/revoked/restarted membership is not.
+      try { captured.assertCurrent(); } catch { return; }
+      const code: ErrorCode = error instanceof HttpError && error.code ? error.code : 'relay.unavailable';
+      this.row(profile.id);
+      this.store.db.prepare('UPDATE governance_profiles SET error_code=? WHERE profile_id=?').run(code, profile.id);
+    }).then(() => this.state(profile.id)).finally(() => { this.running.delete(profile.id); });
+    this.running.set(profile.id, work);
+    return work;
   }
-  async setRole(deviceId: string, role: DeviceRole) {
-    await this.devices.withGovernance(client => client.setRole(deviceId, role));
-    return this.refresh();
+  async setRole(profileId: string, deviceId: string, role: DeviceRole) {
+    this.profile(profileId);
+    await this.devices.withGovernance(profileId, client => client.setRole(deviceId, role));
+    return this.refresh(profileId);
   }
   private normalizePolicy(policy: StatusSharingPolicy): StatusSharingPolicy {
     const parsed = statusSharingPolicySchema.parse(policy);
@@ -115,21 +130,21 @@ export class GovernanceService {
     const sync: AppActivity['sync'] = !profile.enabled ? 'paused' : profile.connection === 'syncing' ? 'syncing' : profile.connection === 'online' ? 'online' : profile.connection === 'error' || profile.connection === 'revoked' || profile.connection === 'locked' ? 'error' : 'idle';
     return { activity: policy.activity ? { mode: this.mode, sync, lastSyncAt: profile.lastSyncAt, operations: this.recent } : null, projects: selected };
   }
-  previewSharing(input: StatusSharingPolicy): StatusSharingPreview {
-    const profile = this.profile(), policy = this.normalizePolicy(input);
+  previewSharing(profileId: string, input: StatusSharingPolicy): StatusSharingPreview {
+    const profile = this.profile(profileId), policy = this.normalizePolicy(input);
     const projection = this.projection(profile.id, policy, true);
     const publication = deviceStatusPublicationSchema.parse({ version: 1, ...projection });
     const bytes = Buffer.byteLength(JSON.stringify(publication), 'utf8');
     if (bytes > 8192) throw appError(413, 'governance.large');
     return { policy, publication, bytes, digest: hash({ profile: profile.id, policy, projects: projection.projects.map(project => ({ projectId: project.projectId, name: project.name })) }) };
   }
-  saveSharing(policy: StatusSharingPolicy, digest: string) {
-    const profile = this.profile(), preview = this.previewSharing(policy);
+  saveSharing(profileId: string, policy: StatusSharingPolicy, digest: string) {
+    const profile = this.profile(profileId), preview = this.previewSharing(profileId, policy);
     if (preview.digest !== digest) throw appError(409, 'governance.previewChanged');
     this.row(profile.id);
     this.store.db.prepare('UPDATE governance_profiles SET sharing_json=? WHERE profile_id=?').run(JSON.stringify(preview.policy), profile.id);
     this.reconcile(profile.id);
-    return this.state();
+    return this.state(profile.id);
   }
   private reconcile(profileId: string, withdraw = false): DeviceStatusPublication | null {
     const row = this.row(profileId);
@@ -143,5 +158,5 @@ export class GovernanceService {
     if (changed) this.store.db.prepare('UPDATE governance_profiles SET status_version=?,status_payload=? WHERE profile_id=?').run(version, payload, profileId);
     return version > Number(row.status_sent_version) ? publication : null;
   }
-  async stop() { this.closed = true; await this.running; }
+  async stop() { this.closed = true; await Promise.allSettled(this.running.values()); }
 }

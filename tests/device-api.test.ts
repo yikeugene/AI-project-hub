@@ -8,6 +8,7 @@ import { Store } from '../server/db.js';
 import { createSqlRelayFixture, type SqlRelayFixture } from './helpers/sql-relay.js';
 import { testCredentialCodec } from './helpers/credentials.js';
 import type { RelayClient } from '../server/relay.js';
+import { PROFILE_HEADER } from '../shared/devices.js';
 
 let fixture: SqlRelayFixture, directory: string, assets: string;
 const runtimes: HubRuntime[] = [];
@@ -26,8 +27,9 @@ async function start(relay = fixture.relay) {
   runtimes.push(runtime);
   const headers = { [DESKTOP_KEY_HEADER]: secret };
   const workspace = await (await fetch(runtime.origin + '/api/workspace', { headers })).json();
-  async function request(path: string, method = 'GET', body?: unknown) {
-    return fetch(runtime.origin + path, { method, headers: { ...headers, 'Content-Type': 'application/json', 'X-Hub-Token': workspace.csrfToken }, body: body === undefined ? undefined : JSON.stringify(body) });
+  async function request(path: string, method = 'GET', body?: unknown, profileId: string | null = runtime.devices.state().profileId) {
+    return fetch(runtime.origin + path, { method, headers: { ...headers, 'Content-Type': 'application/json', 'X-Hub-Token': workspace.csrfToken,
+      ...(profileId === null ? {} : { [PROFILE_HEADER]: profileId }) }, body: body === undefined ? undefined : JSON.stringify(body) });
   }
   return { runtime, secret, workspace, headers, request, factory };
 }
@@ -64,7 +66,7 @@ describe('guarded device API and two desktop runtimes', () => {
     runtimes.push(runtime);
     const workspace = await (await fetch(runtime.origin + '/api/workspace')).json();
     const project = runtime.store.createProject({ path: directory, name: 'Browser-only project' });
-    const response = await fetch(runtime.origin + `/api/projects/${project.id}/git/preview`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-token': workspace.csrfToken },
+    const response = await fetch(runtime.origin + `/api/projects/${project.id}/git/preview`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-token': workspace.csrfToken, [PROFILE_HEADER]: randomUUID() },
       body: JSON.stringify({ operation: { kind: 'stage', paths: ['file.txt'] } }) });
     expect(response.status).toBe(400); expect((await response.json()).code).toBe('device.desktopRequired');
     expect(runtime.store.db.prepare('SELECT COUNT(*) AS n FROM git_operations').get()!.n).toBe(0);
@@ -99,6 +101,63 @@ describe('guarded device API and two desktop runtimes', () => {
     const workspace = await (await a.request('/api/workspace')).json();
     expect(workspace.settings).not.toHaveProperty('credentials');
   });
+  it('requires explicit UUID profile headers and never treats management selection as authorization', async () => {
+    const local = await start();
+    const first = await fixture.bootstrap(), second = await fixture.bootstrap();
+    const a = await local.runtime.devices.pair({ ...fixture.configuration, code: first.code, name: 'Installation', confirm: true });
+    const b = await local.runtime.devices.pair({ ...fixture.configuration, code: second.code, name: 'Another group name', confirm: true });
+    const project = local.runtime.store.createProject({ path: directory, name: 'Explicit group scopes' });
+    const aId = a.profileId!, bId = b.profileId!;
+    for (const profileId of [null, '', 'not-a-uuid']) {
+      expect((await local.request('/api/devices/sync', 'POST', {}, profileId)).status).toBe(400);
+      expect((await local.request('/api/messages', 'GET', undefined, profileId)).status).toBe(400);
+      expect((await local.request(`/api/devices/sharing/${project.id}`, 'PUT', { enabled: true, memoryFields: [] }, profileId)).status).toBe(400);
+    }
+    expect((await local.request('/api/devices', 'GET', undefined, null)).status).toBe(200);
+    expect((await local.request('/api/devices', 'GET', undefined, 'bad')).status).toBe(400);
+    expect((await local.request('/api/devices', 'GET', undefined, randomUUID())).status).toBe(409);
+    expect((await local.request('/api/devices/sync', 'POST', {}, randomUUID())).status).toBe(409);
+    expect((await local.request('/api/devices/groups/select', 'POST', { profileId: bId }, null)).status).toBe(200);
+    expect((await local.request(`/api/devices/sharing/${project.id}`, 'PUT', { enabled: true, memoryFields: ['status'] }, aId)).status).toBe(200);
+    expect(local.runtime.devices.state(aId).sharing[0].enabled).toBe(true); expect(local.runtime.devices.state(bId).sharing).toEqual([]);
+    expect(local.runtime.devices.state().profileId).toBe(bId);
+    expect((await local.request(`/api/devices/groups/${aId}`, 'PATCH', { label: 'Local A label' }, null)).status).toBe(200);
+    expect(local.runtime.devices.state(aId).groups.find(group => group.id === aId)!.label).toBe('Local A label');
+    expect((await local.request('/api/devices/disconnect', 'POST', { confirm: true }, aId)).status).toBe(200);
+    expect((await local.request('/api/devices/connection', 'POST', { enabled: true }, aId)).status).toBe(409);
+    expect((await local.request('/api/devices/groups/select', 'POST', { profileId: aId }, null)).status).toBe(409);
+    expect(local.runtime.devices.state().profileId).toBe(bId);
+  });
+  it('previews and atomically saves all group targets, and rechecks complete versioned download keys over HTTP', async () => {
+    const local = await start(), first = await fixture.bootstrap(), second = await fixture.bootstrap();
+    const a = await local.runtime.devices.pair({ ...fixture.configuration, code: first.code, name: 'Shared installation', label: 'Same label', confirm: true });
+    const b = await local.runtime.devices.pair({ ...fixture.configuration, code: second.code, name: 'Must not rename A', label: 'Same label', confirm: true });
+    const project = local.runtime.store.createProject({ path: directory, name: 'Only shared data' });
+    const policies = [{ profileId: a.profileId!, enabled: true, memoryFields: ['status'] }, { profileId: b.profileId!, enabled: false, memoryFields: ['notes'] }];
+    const path = `/api/devices/group-sharing/${project.id}`;
+    expect((await local.request(path, 'GET', undefined, null)).status).toBe(200);
+    const previewResponse = await local.request(`${path}/preview`, 'POST', { policies }, null);
+    expect(previewResponse.status).toBe(200); const preview = await previewResponse.json();
+    expect(preview.groups).toHaveLength(2); expect(local.runtime.devices.state(a.profileId!).sharing).toEqual([]);
+    expect((await local.request(path, 'PUT', { policies, digest: preview.digest, confirm: false }, null)).status).toBe(400);
+    expect((await local.request(path, 'PUT', { policies: [policies[0]], digest: preview.digest, confirm: true }, null)).status).toBe(409);
+    expect((await local.request(path, 'PUT', { policies, digest: preview.digest, confirm: true }, null)).status).toBe(200);
+    const aggregate = await (await local.request('/api/shared-workspace', 'GET', undefined, null)).json();
+    expect(aggregate.items).toHaveLength(1); expect(aggregate.items[0]).toMatchObject({ profileId: a.profileId, pending: true, publishedAt: null });
+    const item = aggregate.items[0], key = { profileId: item.profileId, ownerDeviceId: item.ownerDeviceId, projectId: item.projectId, version: item.version };
+    const exportResponse = await local.request('/api/shared-workspace/download', 'POST', key, null);
+    expect(exportResponse.status).toBe(200); const exported = await exportResponse.json();
+    expect(exported.filename).toMatch(/\.md$/); expect(exported.text).not.toContain(directory);
+    expect((await local.request('/api/shared-workspace/download', 'POST', { ...key, version: key.version + 1 }, null)).status).toBe(409);
+    expect((await local.request('/api/shared-workspace/download', 'POST', { ...key, path: '/arbitrary' }, null)).status).toBe(400);
+    expect((await local.request('/api/shared-workspace/download', 'POST', { ...key, profileId: b.profileId }, null)).status).toBe(409);
+    expect((await local.request('/api/devices/sync-all', 'POST', {}, null)).status).toBe(200);
+    expect((await local.request('/api/devices/sync-all', 'POST', { profileId: a.profileId }, null)).status).toBe(400);
+    local.runtime.devices.share(a.profileId!, project.id, { enabled: false, memoryFields: [] });
+    expect((await local.request('/api/shared-workspace/download', 'POST', key, null)).status).toBe(409);
+    const forbidden = await fetch(local.runtime.origin + '/api/shared-workspace/download', { method: 'POST', headers: { ...local.headers, 'content-type': 'application/json' }, body: JSON.stringify(key) });
+    expect(forbidden.status).toBe(403);
+  });
   it('serves a packaged asset root inside a dot-directory without exposing dotfiles', async () => {
     const hiddenAssets = join(directory, '.hidden', 'assets'); await mkdir(hiddenAssets, { recursive: true });
     const index = '<!doctype html><title>Packaged root</title>';
@@ -115,7 +174,7 @@ describe('guarded device API and two desktop runtimes', () => {
     } };
     const a = await start(relay); const bootstrap = await fixture.bootstrap();
     await a.runtime.devices.pair({ ...fixture.configuration, code: bootstrap.code, name: 'Shutdown', confirm: true });
-    const pending = a.runtime.devices.worker.syncNow(); await fetching; await a.runtime.stop(); await pending;
+    const pending = a.runtime.devices.workers.get(a.runtime.devices.state().profileId!)!.syncNow(); await fetching; await a.runtime.stop(); await pending;
     const reopened = new Store(join(a.runtime.dataDir, 'hub.sqlite'));
     try { expect(reopened.db.prepare('SELECT COUNT(*) AS n FROM relay_profiles').get()!.n).toBe(1); } finally { reopened.close(); }
     await expect(fetch(a.runtime.origin + '/api/devices')).rejects.toThrow();

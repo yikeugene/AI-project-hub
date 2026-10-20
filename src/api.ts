@@ -1,5 +1,6 @@
 import type { Workspace, Project, Task, Settings, ScanResult, HandoffPreview, SharedStatePreview, ProjectMemory, LaunchAction, TaskStatus, Priority, ProjectStatus, HandoffTarget, DesktopApp } from '../shared/types';
-import type { ApplyProposalInput, CachedSnapshot, ComposeMessageInput, DeviceState, Invitation, MessageView, PairInput, ProposalPreview, SharedPreview, SharePolicy } from '../shared/devices';
+import { PROFILE_HEADER } from '../shared/devices';
+import type { ApplyProposalInput, CachedSnapshot, ComposeMessageInput, DeviceState, GroupShareInput, GroupSharingPreview, Invitation, MessageView, PairInput, ProposalPreview, SharedPreview, SharePolicy, SharedWorkspaceItem, SharedWorkspaceState, SummaryDownload } from '../shared/devices';
 import type { GitApproval, GitAuditEvent, GitDetails, GitDiff, GitDiffInput, GitOperation, GitPreview, GitRequestView } from '../shared/git';
 import type { DeviceRole, GovernanceState, StatusSharingPolicy, StatusSharingPreview } from '../shared/governance';
 
@@ -11,12 +12,12 @@ export class ApiError extends Error {
   constructor(message: string, public status: number, public code?: string, public params: MessageParams = {}) { super(message); this.name = 'ApiError'; }
 }
 let token = '';
-async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+async function request<T>(path: string, method = 'GET', body?: unknown, profileId?: string | null): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {
       method, credentials: 'same-origin', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Hub-Token': token } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Hub-Token': token } : {}), ...(profileId ? { [PROFILE_HEADER]: profileId } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch { throw new ApiError(clientMessages.en.connection, 0, 'client.connection'); }
@@ -63,47 +64,55 @@ export const api = {
 const deviceUrl = (id: string) => `/devices/${encodeURIComponent(id)}`;
 const messageUrl = (id: string) => `/messages/${encodeURIComponent(id)}`;
 export const deviceApi = {
-  state: () => request<DeviceState>('/devices'),
+  state: (profileId?: string) => request<DeviceState>('/devices', 'GET', undefined, profileId),
   rename: (name: string) => request<DeviceState>('/devices/local', 'PATCH', { name }),
   pair: (input: PairInput) => request<DeviceState>('/devices/pair', 'POST', input),
-  retryPair: () => request<DeviceState>('/devices/pair/retry', 'POST', {}),
-  connection: (enabled: boolean) => request<DeviceState>('/devices/connection', 'POST', { enabled }),
-  disconnect: () => request<DeviceState>('/devices/disconnect', 'POST', { confirm: true }),
-  invitation: () => request<Invitation>('/devices/invitation', 'POST', {}),
-  revoke: (id: string) => request<DeviceState>(`${deviceUrl(id)}/revoke`, 'POST', { confirm: true }),
-  sync: () => request<DeviceState>('/devices/sync', 'POST', {}),
-  sharing: (projectId: string) => request<SharedPreview>(`/devices/sharing/${encodeURIComponent(projectId)}`),
-  previewSharing: (projectId: string, input: Pick<SharePolicy, 'enabled' | 'memoryFields'>) => request<SharedPreview>(`/devices/sharing/${encodeURIComponent(projectId)}/preview`, 'POST', input),
-  saveSharing: (projectId: string, input: Pick<SharePolicy, 'enabled' | 'memoryFields'>) => request<SharedPreview>(`/devices/sharing/${encodeURIComponent(projectId)}`, 'PUT', input),
-  projects: (id: string) => request<CachedSnapshot[]>(`${deviceUrl(id)}/projects`),
-  messages: (box: 'inbox' | 'sent') => request<MessageView[]>(`/messages?box=${box}`),
-  send: (input: ComposeMessageInput) => request<MessageView>('/messages', 'POST', input),
-  preview: (id: string) => request<ProposalPreview>(`${messageUrl(id)}/preview`, 'POST', {}),
-  accept: (id: string, input: ApplyProposalInput) => request<MessageView>(`${messageUrl(id)}/accept`, 'POST', input),
-  reject: (id: string) => request<MessageView>(`${messageUrl(id)}/reject`, 'POST', { confirm: true }),
-  read: (id: string) => request<MessageView>(`${messageUrl(id)}/read`, 'POST', {}),
+  retryPair: (profileId: string) => request<DeviceState>('/devices/pair/retry', 'POST', {}, profileId),
+  connection: (profileId: string, enabled: boolean) => request<DeviceState>('/devices/connection', 'POST', { enabled }, profileId),
+  disconnect: (profileId: string) => request<DeviceState>('/devices/disconnect', 'POST', { confirm: true }, profileId),
+  invitation: (profileId: string) => request<Invitation>('/devices/invitation', 'POST', {}, profileId),
+  revoke: (profileId: string, id: string) => request<DeviceState>(`${deviceUrl(id)}/revoke`, 'POST', { confirm: true }, profileId),
+  sync: (profileId: string) => request<DeviceState>('/devices/sync', 'POST', {}, profileId),
+  selectGroup: (profileId: string) => request<DeviceState>('/devices/groups/select', 'POST', { profileId }),
+  labelGroup: (profileId: string, label: string) => request<DeviceState>(`/devices/groups/${encodeURIComponent(profileId)}`, 'PATCH', { label }),
+  syncAll: () => request<DeviceState>('/devices/sync-all', 'POST', {}),
+  workspace: () => request<SharedWorkspaceState>('/shared-workspace'),
+  downloadSummary: (item: Pick<SharedWorkspaceItem, 'profileId' | 'ownerDeviceId' | 'projectId' | 'version'>) => request<SummaryDownload>('/shared-workspace/download', 'POST', { profileId: item.profileId, ownerDeviceId: item.ownerDeviceId, projectId: item.projectId, version: item.version }),
+  groupSharing: (projectId: string) => request<GroupSharingPreview>(`/devices/group-sharing/${encodeURIComponent(projectId)}`),
+  previewGroupSharing: (projectId: string, policies: GroupShareInput[]) => request<GroupSharingPreview>(`/devices/group-sharing/${encodeURIComponent(projectId)}/preview`, 'POST', { policies }),
+  saveGroupSharing: (projectId: string, policies: GroupShareInput[], digest: string) => request<GroupSharingPreview>(`/devices/group-sharing/${encodeURIComponent(projectId)}`, 'PUT', { policies, digest, confirm: true }),
+  sharing: (profileId: string, projectId: string) => request<SharedPreview>(`/devices/sharing/${encodeURIComponent(projectId)}`, 'GET', undefined, profileId),
+  previewSharing: (profileId: string, projectId: string, input: Pick<SharePolicy, 'enabled' | 'memoryFields'>) => request<SharedPreview>(`/devices/sharing/${encodeURIComponent(projectId)}/preview`, 'POST', input, profileId),
+  saveSharing: (profileId: string, projectId: string, input: Pick<SharePolicy, 'enabled' | 'memoryFields'>) => request<SharedPreview>(`/devices/sharing/${encodeURIComponent(projectId)}`, 'PUT', input, profileId),
+  projects: (profileId: string, id: string) => request<CachedSnapshot[]>(`${deviceUrl(id)}/projects`, 'GET', undefined, profileId),
+  messages: (profileId: string, box: 'inbox' | 'sent') => request<MessageView[]>(`/messages?box=${box}`, 'GET', undefined, profileId),
+  send: (profileId: string, input: ComposeMessageInput) => request<MessageView>('/messages', 'POST', input, profileId),
+  preview: (profileId: string, id: string) => request<ProposalPreview>(`${messageUrl(id)}/preview`, 'POST', {}, profileId),
+  accept: (profileId: string, id: string, input: ApplyProposalInput) => request<MessageView>(`${messageUrl(id)}/accept`, 'POST', input, profileId),
+  reject: (profileId: string, id: string) => request<MessageView>(`${messageUrl(id)}/reject`, 'POST', { confirm: true }, profileId),
+  read: (profileId: string, id: string) => request<MessageView>(`${messageUrl(id)}/read`, 'POST', {}, profileId),
 };
 
 const gitRequestUrl = (id: string) => `/git/requests/${encodeURIComponent(id)}`;
 export const gitApi = {
   details: (id: string) => request<GitDetails>(`${projectUrl(id)}/git/details`),
   diff: (id: string, input: GitDiffInput) => request<GitDiff>(`${projectUrl(id)}/git/diff`, 'POST', input),
-  preview: (id: string, operation: GitOperation) => request<GitPreview>(`${projectUrl(id)}/git/preview`, 'POST', { operation }),
-  submit: (previewId: string, reviewerDeviceId: string, digest: string) => request<GitRequestView>('/git/requests', 'POST', { previewId, reviewerDeviceId, digest, confirm: true }),
-  requests: (id: string) => request<GitRequestView[]>(`${projectUrl(id)}/git/requests`),
-  execute: (id: string, digest: string) => request<GitRequestView>(`${gitRequestUrl(id)}/execute`, 'POST', { digest, confirm: true }),
-  cancel: (id: string, digest: string) => request<GitRequestView>(`${gitRequestUrl(id)}/cancel`, 'POST', { digest, confirm: true }),
-  audit: (id: string) => request<GitAuditEvent[]>(`${gitRequestUrl(id)}/audit`),
-  acknowledge: (id: string) => request<GitRequestView>(`${gitRequestUrl(id)}/acknowledge`, 'POST', { confirm: true }),
-  approvals: () => request<GitApproval[]>('/git/approvals'),
-  decide: (id: string, digest: string, decision: 'approved' | 'rejected', reason: string) => request<GitApproval>(`/git/approvals/${encodeURIComponent(id)}/decision`, 'POST', { digest, decision, reason, confirm: true }),
+  preview: (profileId: string, id: string, operation: GitOperation) => request<GitPreview>(`${projectUrl(id)}/git/preview`, 'POST', { operation }, profileId),
+  submit: (profileId: string, previewId: string, reviewerDeviceId: string, digest: string) => request<GitRequestView>('/git/requests', 'POST', { previewId, reviewerDeviceId, digest, confirm: true }, profileId),
+  requests: (profileId: string | null, id: string) => request<GitRequestView[]>(`${projectUrl(id)}/git/requests`, 'GET', undefined, profileId),
+  execute: (profileId: string, id: string, digest: string) => request<GitRequestView>(`${gitRequestUrl(id)}/execute`, 'POST', { digest, confirm: true }, profileId),
+  cancel: (profileId: string, id: string, digest: string) => request<GitRequestView>(`${gitRequestUrl(id)}/cancel`, 'POST', { digest, confirm: true }, profileId),
+  audit: (profileId: string | null, id: string) => request<GitAuditEvent[]>(`${gitRequestUrl(id)}/audit`, 'GET', undefined, profileId),
+  acknowledge: (profileId: string | null, id: string) => request<GitRequestView>(`${gitRequestUrl(id)}/acknowledge`, 'POST', { confirm: true }, profileId),
+  approvals: (profileId: string | null) => request<GitApproval[]>('/git/approvals', 'GET', undefined, profileId),
+  decide: (profileId: string, id: string, digest: string, decision: 'approved' | 'rejected', reason: string) => request<GitApproval>(`/git/approvals/${encodeURIComponent(id)}/decision`, 'POST', { digest, decision, reason, confirm: true }, profileId),
 };
 export const governanceApi = {
-  state: () => request<GovernanceState>('/governance'),
-  refresh: () => request<GovernanceState>('/governance/refresh', 'POST', { confirm: true }),
-  role: (deviceId: string, role: DeviceRole) => request<GovernanceState>(`/governance/roles/${encodeURIComponent(deviceId)}`, 'PATCH', { role, confirm: true }),
-  previewSharing: (policy: StatusSharingPolicy) => request<StatusSharingPreview>('/governance/sharing/preview', 'POST', { policy }),
-  saveSharing: (policy: StatusSharingPolicy, digest: string) => request<GovernanceState>('/governance/sharing', 'POST', { policy, digest, confirm: true }),
+  state: (profileId: string | null) => request<GovernanceState>('/governance', 'GET', undefined, profileId),
+  refresh: (profileId: string) => request<GovernanceState>('/governance/refresh', 'POST', { confirm: true }, profileId),
+  role: (profileId: string, deviceId: string, role: DeviceRole) => request<GovernanceState>(`/governance/roles/${encodeURIComponent(deviceId)}`, 'PATCH', { role, confirm: true }, profileId),
+  previewSharing: (profileId: string, policy: StatusSharingPolicy) => request<StatusSharingPreview>('/governance/sharing/preview', 'POST', { policy }, profileId),
+  saveSharing: (profileId: string, policy: StatusSharingPolicy, digest: string) => request<GovernanceState>('/governance/sharing', 'POST', { policy, digest, confirm: true }, profileId),
 };
 
 export function errorMessage(error: unknown, locale: Locale = DEFAULT_LOCALE): string {

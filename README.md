@@ -2,15 +2,17 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
-**Download v0.4.1 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-portable-x64.exe)
+**Download v0.5.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-portable-x64.exe)
 
 A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, Git observations, and individually approved Git actions in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
 
-**New in v0.4.1:** sharing settings now offer **Select all** for memory fields, including partial-selection feedback and explicit preview/confirmation before saving. See the [release notes](docs/RELEASE-0.4.1.md).
+**New in v0.5.0:** Shared Workspace combines read-only summaries from multiple explicitly joined groups, with search, per-project group and field selection, and Markdown downloads. See the [release notes](docs/RELEASE-0.5.0.md).
 
-**Introduced in v0.4.0:** approved Git operations, administrator roles, optional device status, close-to-tray behavior, and a configured GitHub update source. Back up your data before upgrading; the local database moves to schema v3. Git approvals also require you to upgrade your own relay using the documented v2 migration and designate an administrator.
+**Introduced in v0.4.0:** approved Git operations, administrator roles, optional device status, close-to-tray behavior, and a configured GitHub update source. Git approvals require you to upgrade your own relay using the documented v2 migration and designate an administrator.
 
 **The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
+
+**Upgrade notice:** v0.5.0 migrates the local database to **schema v4**. Quit Hub completely and back up the full data directory before upgrading. Older apps cannot open the upgraded database; reverting requires a compatible pre-upgrade backup.
 
 ## What you can do
 
@@ -24,16 +26,16 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 ## Get the Windows app
 
-Download **v0.4.1** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
+Download **v0.5.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
 
 Run the installer to install for your Windows user, or download and double-click the portable executable. GitHub's **Source code (zip)** and **Source code (tar.gz)** archives are for developers.
 
 | Download | Use |
 | --- | --- |
-| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
-| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-portable-x64.exe) | Run directly without an installer. |
+| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
+| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-portable-x64.exe) | Run directly without an installer. |
 
-[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.4.1) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/SHA256SUMS.txt)
+[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.5.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/SHA256SUMS.txt)
 
 Version 0.4.0 configures the official GitHub update source. Users upgrading from 0.3.0 must download this release manually because that version has no configured updater. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
 
@@ -49,7 +51,7 @@ Git is needed for Git views and approved Git operations; projects, memory, tasks
 4. **Save a checkpoint.** Use project memory for the current state, decisions, and known issues.
 5. **Continue work.** The workbench combines recorded context with Git facts and explainable suggestions. Commit counts are not completion percentages.
 
-Your normal workspace is not seeded with demo projects. **Version 0.4.0 upgrades the local SQLite schema to version 3.** Back up before upgrading: older installed apps cannot open the upgraded database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
+Your normal workspace is not seeded with demo projects. **Version 0.5.0 upgrades the local SQLite schema to version 4.** Back up before upgrading: older installed apps cannot open the upgraded database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
 
 ## AI handoffs: copy, paste, review
 
@@ -128,8 +130,10 @@ The Supabase integration is **disabled by default**. It provides selected projec
 1. Manually apply `supabase/migrations/202610190001_desktop_relay.sql`, then `supabase/migrations/202610200001_device_git_approval.sql`, to your own Supabase project. Nothing deploys automatically. A new private `hub_private.bootstrap(...)` invitation designates the first administrator. For an existing group, the database operator must explicitly call `hub_private.designate_initial_admin(network_uuid, device_uuid)`; upgrading alone never promotes an existing member.
 2. In desktop settings, enter the Project URL, a **public publishable/anon key**, a device name, and the pairing code. Never enter a `service_role` or secret administrative key.
 3. Invite another desktop using a one-time pairing code.
-4. Select which projects and memory fields to share, preview them, and confirm. Nothing is shared by default. Selected summaries are visible to all currently paired devices and devices paired later.
-5. Review incoming requests locally before accepting or rejecting them. Only confirmation on the owning computer can change the allowed memory fields or next action.
+4. Select a project, explicitly choose its recipient groups and each group's memory fields, preview the exact content, and confirm. Within each selected group, current and future paired members can see that projection. Joining another group never shares existing projects with it automatically.
+5. Open **Shared Workspace** to search or filter all joined groups' summaries, including your own publications. Read-only details and Markdown downloads contain only the approved summary fields, not project files. The same project is shown separately for each group. Offline/paused groups retain clearly dated caches; known withdrawals and revoked/left memberships disappear.
+6. In Settings, join another group without disconnecting the first. The selected **management group** scopes device controls, messages and Git approvals; changing the workspace filter does not change it. Groups synchronize independently, and one group's administrator cannot authorize another group's operations.
+7. Review incoming requests locally before accepting or rejecting them. Only confirmation on the owning computer can change the allowed memory fields or next action.
 
 Normal invitations create **members**, including after re-pairing; members cannot promote themselves or revoke devices. Only active administrators manage roles/revocations or decide assigned Git requests, and the last active administrator is protected.
 
@@ -176,7 +180,7 @@ npm run test:desktop
 
 `npm run test:ui` **only creates UI fixtures**, including sample repositories and `.local/verification/hub.sqlite`. It is not a UI test runner and does not launch or verify the app.
 
-The v0.4.1 release passed all 400 tests across 26 files, 32 packaged desktop checks (including sharing select-all), and 4 portable lifecycle checks, with no skipped checks. Its installer update metadata matches the built installer. NSIS installation/uninstallation and end-to-end update installation were not executed; live Supabase, true multi-connection PostgreSQL races, and two physical desktops also remain unverified. See the [release verification](docs/RELEASE-0.4.1.md#verification--驗證) and [verification boundaries](docs/GIT-SAFETY.md#verification-scope). Rerun the checks on your own builds.
+The v0.5.0 release passed all 449 tests across 29 files, 35 packaged desktop checks, 9 packaged Git checks, and 4 portable lifecycle groups, with no skipped checks. Installer update metadata matches the built installer. See the [release verification](docs/RELEASE-0.5.0.md#verification--驗證) and [verification boundaries](docs/GIT-SAFETY.md#verification-scope). NSIS installation/uninstallation, end-to-end update installation, live Supabase, true multi-connection PostgreSQL races, and two physical desktops remain unverified. Rerun the checks on your own builds.
 
 ### Optional web development mode
 

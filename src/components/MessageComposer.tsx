@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Send } from 'lucide-react';
 import { messagePayloadSchema, type CachedSnapshot, type DeviceState, type MemoryField, type MessagePayload } from '../../shared/devices';
 import { LocalizedError } from '../../shared/i18n';
@@ -17,6 +17,10 @@ export function MessageComposer({ target, state, onClose, onSent, onDirtyChange,
   const memoryLabels = getMemoryLabels(locale);
   // The chosen snapshot is deliberately frozen for the lifetime of this draft.
   const [snapshot] = useState(target.snapshot);
+  const [profileId] = useState(state.profileId);
+  const scope = useRef(state.profileId); scope.current = state.profileId;
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [text, setText] = useState('');
   const [selectedNext, setSelectedNext] = useState(false);
   const [nextAction, setNextAction] = useState(snapshot?.project?.nextAction ?? '');
@@ -24,10 +28,10 @@ export function MessageComposer({ target, state, onClose, onSent, onDirtyChange,
   const [memory, setMemory] = useState<Partial<Record<MemoryField, string>>>(snapshot?.project?.memory ?? {});
   const [outgoing, setOutgoing] = useState<MessagePayload | null>(null);
   const [discard, setDiscard] = useState(false);
-  const action = useAction();
+  const action = useAction(state.profileId);
   const dirty = !!text || selectedNext || selectedFields.length > 0;
   const recipient = state.devices.find(device => device.id === target.toDeviceId);
-  const canSend = canUseNetwork(state) && !!recipient && !recipient.revokedAt && target.toDeviceId !== state.localDevice.id;
+  const canSend = !!profileId && profileId === state.profileId && canUseNetwork(state) && !!recipient && !recipient.revokedAt && target.toDeviceId !== state.localDevice.id;
   const availableFields = MEMORY_FIELDS.filter(field => snapshot?.project && Object.hasOwn(snapshot.project.memory, field));
   useBeforeUnload(dirty || action.busy);
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
@@ -44,9 +48,9 @@ export function MessageComposer({ target, state, onClose, onSent, onDirtyChange,
     setOutgoing(parsed.data);
   };
   const send = async () => {
-    if (!outgoing || !canSend) return;
-    const result = await action.run(() => deviceApi.send({ toDeviceId: target.toDeviceId, payload: outgoing }));
-    if (result.ok) { setText(''); setSelectedNext(false); setSelectedFields([]); onDirtyChange(false); await onSent(); onClose(); }
+    if (!outgoing || !canSend || !profileId) return;
+    const result = await action.run(() => deviceApi.send(profileId, { toDeviceId: target.toDeviceId, payload: outgoing }));
+    if (result.ok && alive.current && scope.current === profileId) { setText(''); setSelectedNext(false); setSelectedFields([]); onDirtyChange(false); await onSent(); if (alive.current && scope.current === profileId) onClose(); }
   };
   const recipientDescription = t('composer.recipient', { name: recipient?.name ?? t('composer.unknownDevice'), id: shortDeviceId(target.toDeviceId) });
   const [beforeRecipient, afterRecipient] = t('composer.recipient', { name: '{name}', id: target.toDeviceId }).split('{name}');

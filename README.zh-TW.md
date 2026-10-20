@@ -2,15 +2,17 @@
 
 [English](README.md) · **繁體中文**
 
-**下載 Windows x64 v0.4.1：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-portable-x64.exe)
+**下載 Windows x64 v0.5.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-portable-x64.exe)
 
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint、Git 觀測與逐次審批的 Git 操作，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
-**v0.4.1 新增：** 分享記憶欄位可「全選／取消全選」，並顯示部分選取狀態；儲存仍需預覽及明確確認。詳見[版本說明](docs/RELEASE-0.4.1.md)。
+**v0.5.0 新增：**「共享工作區」集中查看多個已加入群組的唯讀摘要，支援搜尋、逐專案選擇共享群組與欄位，以及 Markdown 下載。詳見[版本說明](docs/RELEASE-0.5.0.md)。
 
-**v0.4.0 引入：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。升級前請備份資料；本機資料庫會升級至 schema v3。Git 審批另需依文件套用 v2 relay 遷移並指定管理員。
+**v0.4.0 引入：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。Git 審批需依文件套用 v2 relay 遷移並指定管理員。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
+
+**升級注意：** v0.5.0 會將本機資料庫升級至 **schema v4**。升級前請完全退出 Hub 並備份整個資料目錄；舊版無法開啟升級後資料庫，回退須還原相容的升級前備份。
 
 ## 可以做什麼
 
@@ -24,16 +26,16 @@
 
 ## 取得 Windows 桌面版
 
-透過下方連結直接下載 **v0.4.1**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
+透過下方連結直接下載 **v0.5.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
 執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
 | 下載 | 用途 |
 | --- | --- |
-| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
-| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-portable-x64.exe) | 不需安裝，下載後直接執行。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/AI-Project-Hub-0.5.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.4.1) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/SHA256SUMS.txt)
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.5.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.5.0/SHA256SUMS.txt)
 
 v0.4.0 已設定正式 GitHub 更新來源。從 v0.3.0 升級仍需手動下載本版，因舊版未設定更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
@@ -49,7 +51,7 @@ Git 檢視與經批准的 Git 操作需要 Git；沒有 Git 仍可使用專案�
 4. **儲存 checkpoint。** 在專案記憶記錄目前進度、決策與已知問題。
 5. **繼續工作。** 工作台結合已記錄脈絡、Git 事實與可解釋的建議；commit 數量不是完成百分比。
 
-正式工作區不會預填示範專案。**v0.4.0 會將本機 SQLite schema 升級至第 3 版。** 升級前請備份；已安裝的舊版程式無法開啟升級後資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
+正式工作區不會預填示範專案。**v0.5.0 會將本機 SQLite schema 升級至第 4 版。** 升級前請備份；已安裝的舊版程式無法開啟升級後資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
 
 ## AI 交接：複製、貼上、審閱
 
@@ -128,8 +130,10 @@ Supabase 整合**預設停用**。它讓已配對的桌面 App 交換選定專�
 1. 在自己的 Supabase 專案依序手動套用 `supabase/migrations/202610190001_desktop_relay.sql` 與 `supabase/migrations/202610200001_device_git_approval.sql`，不會自動部署。新的私有 `hub_private.bootstrap(...)` 邀請會指定第一位管理員；既有群組須由資料庫管理者明確執行 `hub_private.designate_initial_admin(network_uuid, device_uuid)`，升級本身不會提升任何既有成員權限。
 2. 在桌面設定輸入 Project URL、**公開 publishable／anon key**、裝置名稱與配對碼。不要輸入 `service_role` 或 secret 管理金鑰。
 3. 使用一次性配對碼邀請另一台桌面。
-4. 選擇要分享的專案與記憶欄位，預覽後確認。預設沒有任何分享；選定摘要會提供給所有目前及之後加入的已配對裝置。
-5. 在本機審閱收到的請求，再接受或拒絕。只有資料所屬電腦的確認能修改允許的記憶欄位或下一步。
+4. 選擇專案，明確勾選共享群組及各組的記憶欄位，預覽實際內容後確認。只有所選群組內目前及之後加入的成員能看到該份投影；加入另一群組不會自動分享既有專案。
+5. 在「共享工作區」搜尋或篩選所有已加入群組的摘要，包含自己的共享。唯讀詳情與 Markdown 下載只包含允許的摘要欄位，不包含專案檔案。同一專案在不同群組分開顯示；離線／暫停時保留明確標示時間的快取，已知撤回、撤銷及已離開群組不再展示。
+6. 在設定中加入另一群組，不必先退出舊群組。「目前管理群組」決定裝置、訊息與 Git 審批的操作範圍，與共享工作區篩選獨立。各組獨立同步，不能使用另一組的管理員權限批准操作。
+7. 在本機審閱收到的請求，再接受或拒絕。只有資料所屬電腦的確認能修改允許的記憶欄位或下一步。
 
 一般邀請只建立 **member**，重新配對也不繼承原角色。成員不能自行升權或撤銷設備；只有有效 **admin** 可管理角色／撤銷設備，或決定分派給自己的 Git 申請，且禁止移除最後一位有效管理員。
 
@@ -176,7 +180,7 @@ npm run test:desktop
 
 `npm run test:ui` **只建立 UI fixtures**，包括範例儲存庫及 `.local/verification/hub.sqlite`。它不是 UI 測試執行器，也不會啟動或驗證 App。
 
-v0.4.1 發行建置已通過 26 個測試檔／400 個案例、32 項打包桌面檢查（含分享欄位全選）及 4 組免安裝生命週期檢查，沒有跳過項目；安裝版更新中繼資料亦已核對實際安裝包。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。詳見[本版驗證](docs/RELEASE-0.4.1.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)；自行建置仍須重新驗證。
+v0.5.0 發行建置已通過 29 個測試檔／449 個案例、35 項打包桌面檢查、9 項打包 Git 檢查及 4 組免安裝生命週期檢查，沒有跳過項目；安裝版更新中繼資料亦已核對實際安裝包。詳見[本版驗證](docs/RELEASE-0.5.0.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。自行建置仍須重新驗證。
 
 ### 可選的 web 開發模式
 

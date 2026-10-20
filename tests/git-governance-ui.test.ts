@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { DeviceState } from '../shared/devices';
+import { PROFILE_HEADER, type DeviceState } from '../shared/devices';
 import type { GitApproval, GitRequestView, GitReviewSummary, LocalGitState } from '../shared/git';
 import type { GovernanceState, RemoteDeviceStatus } from '../shared/governance';
 import { EMPTY_MEMORY, type Project } from '../shared/types';
@@ -25,6 +25,7 @@ const otherId = '22222222-2222-4222-8222-222222222222';
 const projectId = '33333333-3333-4333-8333-333333333333';
 const networkId = '44444444-4444-4444-8444-444444444444';
 const requestId = '55555555-5555-4555-8555-555555555555';
+const profileId = '66666666-6666-4666-8666-666666666666';
 const now = Date.parse('2026-10-20T11:00:00.000Z');
 const createdAt = new Date(now - 60_000).toISOString();
 const expiresAt = new Date(now + 60_000).toISOString();
@@ -37,6 +38,7 @@ const summary: GitReviewSummary = {
 const approval: GitApproval = { id: requestId, reviewerDeviceId: localId, fromDeviceId: localId, digest, summary, expiresAt, createdAt, state: 'pending', decidedAt: null, reason: null, approvedBy: null, approvedEpoch: null, executionId: null, consumedAt: null, result: null };
 const request: GitRequestView = { preview: { id: requestId, projectId, operation: { kind: 'commit', message: summary.message!, authorName: summary.authorName!, authorEmail: summary.authorEmail! }, summary, digest, createdAt, expiresAt }, state: 'approved', approval: { ...approval, state: 'approved', approvedBy: localId }, result: null, error: null, fenceAcknowledged: false, updatedAt: createdAt };
 const devices: DeviceState = {
+  installationId: '77777777-7777-4777-8777-777777777777', profileId, groups: [{ id: profileId, label: 'Test group', url: 'https://test.supabase.co', networkId, deviceId: localId, enabled: true, paired: true, pairingPending: false, connection: 'online', lastSyncAt: createdAt, lastError: null }],
   localDevice: { id: localId, name: 'Same name' }, desktopAvailable: true, enabled: true, paired: true, pairingPending: false, connection: 'online', configuration: null,
   networkId, devices: [{ id: otherId, name: 'Same name', lastSeenAt: createdAt, revokedAt: null }], sharing: [], lastSyncAt: createdAt, lastError: null, queuedCount: 0, inboxCount: 0,
 };
@@ -127,7 +129,7 @@ describe('Git approval frontend boundaries', () => {
     expect(button(html, gitMessages.en.approve)).toContain('disabled=""');
   });
   it('exposes execution only for approved local requests and never offers retry for unknown results', () => {
-    const props = { projectId, networkId, canManage: true, canExecute: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
+    const props = { projectId, profileId, canManage: true, canExecute: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
     resource.data = [request];
     expect(button(render(createElement(GitRequests, props)), gitMessages.en.execute)).not.toContain('disabled=');
     expect(button(render(createElement(GitRequests, { ...props, canExecute: false })), gitMessages.en.execute)).toContain('disabled=""');
@@ -234,15 +236,15 @@ describe('typed same-origin Git and governance APIs', () => {
     await api.workspace();
     await gitApi.details('project/id');
     await gitApi.diff('project/id', { path: ':!file\n中文.ts', source: 'index' });
-    await gitApi.preview(projectId, { kind: 'stage', paths: [':!file\n中文.ts'] });
-    await gitApi.submit(requestId, otherId, digest);
-    await gitApi.execute('request/id', digest);
-    await gitApi.cancel(requestId, digest);
-    await gitApi.acknowledge(requestId);
-    await gitApi.audit('request/id');
-    await gitApi.decide('approval/id', digest, 'approved', 'Exact request only');
-    await gitApi.requests(projectId);
-    await gitApi.approvals();
+    await gitApi.preview(profileId, projectId, { kind: 'stage', paths: [':!file\n中文.ts'] });
+    await gitApi.submit(profileId, requestId, otherId, digest);
+    await gitApi.execute(profileId, 'request/id', digest);
+    await gitApi.cancel(profileId, requestId, digest);
+    await gitApi.acknowledge(profileId, requestId);
+    await gitApi.audit(profileId, 'request/id');
+    await gitApi.decide(profileId, 'approval/id', digest, 'approved', 'Exact request only');
+    await gitApi.requests(profileId, projectId);
+    await gitApi.approvals(profileId);
     const bodies = calls.map(call => call.options.body ? JSON.parse(call.options.body as string) : undefined);
     expect(calls[1].url).toBe('/api/projects/project%2Fid/git/details');
     expect(bodies[2]).toEqual({ path: ':!file\n中文.ts', source: 'index' });
@@ -256,6 +258,8 @@ describe('typed same-origin Git and governance APIs', () => {
     expect(calls[9].url).toBe('/api/git/approvals/approval%2Fid/decision');
     expect(bodies[9]).toEqual({ digest, decision: 'approved', reason: 'Exact request only', confirm: true });
     expect(calls.slice(1).every(call => (call.options.headers as Record<string, string>)['X-Hub-Token'] === 'local-csrf')).toBe(true);
+    expect(calls.slice(1, 3).every(call => !(PROFILE_HEADER in (call.options.headers as Record<string, string>)))).toBe(true);
+    expect(calls.slice(3).every(call => (call.options.headers as Record<string, string>)[PROFILE_HEADER] === profileId)).toBe(true);
     expect(calls.every(call => call.options.credentials === 'same-origin' && call.options.cache === 'no-store')).toBe(true);
     // No API method accepts a shell, argv, repository path or mutable operation on execute.
     expect(bodies[5]).not.toHaveProperty('operation');
@@ -265,13 +269,25 @@ describe('typed same-origin Git and governance APIs', () => {
     const calls: Array<{ url: string; options: RequestInit }> = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string, options: RequestInit) => { calls.push({ url, options }); return { ok: true, json: async () => ({}) }; }));
     const policy = { activity: true, projects: [{ projectId, git: true, tasks: false }] };
-    await governanceApi.state(); await governanceApi.refresh(); await governanceApi.role('device/id', 'admin');
-    await governanceApi.previewSharing(policy); await governanceApi.saveSharing(policy, digest);
+    await governanceApi.state(profileId); await governanceApi.refresh(profileId); await governanceApi.role(profileId, 'device/id', 'admin');
+    await governanceApi.previewSharing(profileId, policy); await governanceApi.saveSharing(profileId, policy, digest);
     expect(calls.map(call => call.url)).toEqual(['/api/governance', '/api/governance/refresh', '/api/governance/roles/device%2Fid', '/api/governance/sharing/preview', '/api/governance/sharing']);
     expect(JSON.parse(calls[1].options.body as string)).toEqual({ confirm: true });
     expect(JSON.parse(calls[2].options.body as string)).toEqual({ role: 'admin', confirm: true });
     expect(JSON.parse(calls[3].options.body as string)).toEqual({ policy });
     expect(JSON.parse(calls[4].options.body as string)).toEqual({ policy, digest, confirm: true });
     expect(JSON.parse(calls[4].options.body as string)).not.toHaveProperty('publication');
+    expect(calls.every(call => (call.options.headers as Record<string, string>)[PROFILE_HEADER] === profileId)).toBe(true);
+  });
+  it('makes nullable recovery reads explicit and never borrows the last requested profile', async () => {
+    const calls: Array<{ url: string; options: RequestInit }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, options: RequestInit) => { calls.push({ url, options }); return { ok: true, json: async () => ({}) }; }));
+    await governanceApi.state(profileId);
+    await governanceApi.state(null); await gitApi.requests(null, projectId); await gitApi.approvals(null);
+    await gitApi.audit(null, requestId); await gitApi.acknowledge(null, requestId);
+    expect((calls[0].options.headers as Record<string, string>)[PROFILE_HEADER]).toBe(profileId);
+    expect(calls.slice(1).every(call => !(PROFILE_HEADER in (call.options.headers as Record<string, string>)))).toBe(true);
+    await gitApi.requests(otherId, projectId);
+    expect((calls.at(-1)!.options.headers as Record<string, string>)[PROFILE_HEADER]).toBe(otherId);
   });
 });

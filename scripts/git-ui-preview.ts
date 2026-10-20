@@ -49,16 +49,18 @@ for (const name of ['admin', 'origin']) {
 const admin = peers.get('admin')!.runtime, origin = peers.get('origin')!.runtime;
 const invitation = await relay.bootstrap('Disposable review network');
 await admin.devices.pair({ ...relay.configuration, code: invitation.code, name: '管理員電腦（隔離測試）', confirm: true });
-const memberInvite = await admin.devices.invitation();
+const adminProfile = admin.devices.state().profileId!;
+const memberInvite = await admin.devices.invitation(adminProfile);
 await origin.devices.pair({ ...relay.configuration, code: memberInvite.code, name: '開發電腦（隔離測試）', confirm: true });
 const project = origin.store.createProject({ path: projectPath, name: '安全 Git 操作示範', description: '隔離的測試儲存庫；不會改動你的專案。', nextAction: '送交管理員審批，再在本機確認執行。' });
 origin.store.createTask(project.id, { title: '驗證審批與背景狀態', status: 'doing' });
 await origin.refreshAll();
-origin.devices.share(project.id, { enabled: true, memoryFields: [] });
-await admin.devices.worker.syncNow(); await origin.devices.worker.syncNow(); await admin.devices.worker.syncNow();
-const sharing = origin.governance.previewSharing({ activity: true, projects: [{ projectId: project.id, git: true, tasks: true }] });
-origin.governance.saveSharing(sharing.policy, sharing.digest); origin.setActivityMode('background');
-await origin.governance.refresh(); await admin.governance.refresh();
+const originProfile = origin.devices.state().profileId!;
+origin.devices.share(originProfile, project.id, { enabled: true, memoryFields: [] });
+await admin.devices.syncNow(adminProfile); await origin.devices.syncNow(originProfile); await admin.devices.syncNow(adminProfile);
+const sharing = origin.governance.previewSharing(originProfile, { activity: true, projects: [{ projectId: project.id, git: true, tasks: true }] });
+origin.governance.saveSharing(originProfile, sharing.policy, sharing.digest); origin.setActivityMode('background');
+await origin.governance.refresh(originProfile); await admin.governance.refresh(adminProfile);
 
 const server = createServer(async (req, res) => {
   try {
@@ -73,7 +75,7 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/__fixture/state' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify({
         projectId: project.id, originId: origin.devices.state().localDevice.id, adminId: admin.devices.state().localDevice.id,
-        requests: origin.git.list(project.id), readme: await readFile(join(projectPath, 'README.md'), 'utf8'),
+        requests: origin.git.list(originProfile, project.id), readme: await readFile(join(projectPath, 'README.md'), 'utf8'),
       })); return;
     }
     if (url.pathname === '/__fixture/edit' && req.method === 'POST') {
@@ -85,7 +87,7 @@ const server = createServer(async (req, res) => {
     const chunks: Buffer[] = []; let bytes = 0;
     for await (const raw of req) { const chunk = Buffer.from(raw); bytes += chunk.length; if (bytes > 1024 * 1024) { res.writeHead(413).end(); return; } chunks.push(chunk); }
     const headers = new Headers();
-    for (const key of ['content-type', 'x-hub-token', 'accept']) if (typeof req.headers[key] === 'string') headers.set(key, req.headers[key] as string);
+    for (const key of ['content-type', 'x-hub-token', 'x-hub-profile-id', 'accept']) if (typeof req.headers[key] === 'string') headers.set(key, req.headers[key] as string);
     headers.set(DESKTOP_KEY_HEADER, peer.secret); headers.set('origin', peer.runtime.origin);
     const response = await fetch(peer.runtime.origin + url.pathname + url.search, { method: req.method, headers, redirect: 'manual',
       ...(!['GET', 'HEAD'].includes(req.method ?? 'GET') ? { body: Buffer.concat(chunks) } : {}) });

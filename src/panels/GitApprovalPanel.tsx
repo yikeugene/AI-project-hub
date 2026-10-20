@@ -15,10 +15,11 @@ export function GitApprovalPanel({ devices, governance, onDirtyChange, onBusyCha
   devices: DeviceState; governance: GovernanceController; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const t = useT(gitMessages); const locale = useLocale(); const now = useNow();
-  const load = useCallback(() => gitApi.approvals(), [devices.networkId]);
+  const load = useCallback(() => gitApi.approvals(devices.profileId), [devices.profileId]);
   const approvals = useDeviceResource(load);
-  const action = useAction();
-  const [decision, setDecision] = useState<{ approval: GitApproval; choice: 'approved' | 'rejected' } | null>(null);
+  const action = useAction(devices.profileId);
+  const [decision, setDecision] = useState<{ profileId: string; approval: GitApproval; choice: 'approved' | 'rejected' } | null>(null);
+  const scope = useRef(devices.profileId); scope.current = devices.profileId;
   const [reason, setReason] = useState('');
   const [saved, setSaved] = useState(false);
   const alive = useRef(true);
@@ -27,20 +28,20 @@ export function GitApprovalPanel({ devices, governance, onDirtyChange, onBusyCha
   useEffect(() => { onDirtyChange(!!decision); }, [decision, onDirtyChange]);
   useBeforeUnload(!!decision || action.busy);
   const validPolicy = hasCurrentGovernance(governance.state, devices) && !governance.error;
-  const canDecide = validPolicy && isNetworkOnline(devices) && governance.state?.policy?.role === 'admin' && !approvals.error;
+  const canDecide = !!devices.profileId && validPolicy && isNetworkOnline(devices) && governance.state?.policy?.role === 'admin' && !approvals.error;
   const eligible = (approval: GitApproval) => canDecide && approval.reviewerDeviceId === devices.localDevice.id && approvalDisplayState(approval, now) === 'pending';
   const current = decision && approvals.data?.find(item => item.id === decision.approval.id && item.digest === decision.approval.digest);
-  const currentEligible = !!current && eligible(current);
+  const currentEligible = decision?.profileId === devices.profileId && !!current && eligible(current);
   const name = (id: string) => id === devices.localDevice.id ? devices.localDevice.name : devices.devices.find(device => device.id === id)?.name ?? id;
   const open = (approval: GitApproval, choice: 'approved' | 'rejected') => {
     if (!eligible(approval) || action.busy) return;
-    action.setError(null); setSaved(false); setReason(''); setDecision({ approval, choice });
+    action.setError(null); setSaved(false); setReason(''); setDecision({ profileId: devices.profileId!, approval, choice });
   };
   const confirm = async () => {
     if (!decision || !currentEligible || action.busy || Date.parse(decision.approval.expiresAt) <= Date.now()) return;
     const captured = decision;
-    const result = await action.run(() => gitApi.decide(captured.approval.id, captured.approval.digest, captured.choice, reason));
-    if (!alive.current) return;
+    const result = await action.run(() => gitApi.decide(captured.profileId, captured.approval.id, captured.approval.digest, captured.choice, reason));
+    if (!alive.current || scope.current !== captured.profileId) return;
     if (result.ok) { setDecision(null); setReason(''); setSaved(true); }
     await Promise.all([approvals.reload(), governance.reload()]);
   };

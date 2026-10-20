@@ -2,11 +2,13 @@
 
 [English](README.md) · **繁體中文**
 
-**下載 Windows x64 v0.4.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-portable-x64.exe)
+**下載 Windows x64 v0.4.1：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-portable-x64.exe)
 
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint、Git 觀測與逐次審批的 Git 操作，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
-**v0.4.0 新增：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。升級前請備份資料；本機資料庫會升級至 schema v3。Git 審批另需依文件套用 v2 relay 遷移並指定管理員。
+**v0.4.1 新增：** 分享記憶欄位可「全選／取消全選」，並顯示部分選取狀態；儲存仍需預覽及明確確認。詳見[版本說明](docs/RELEASE-0.4.1.md)。
+
+**v0.4.0 引入：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。升級前請備份資料；本機資料庫會升級至 schema v3。Git 審批另需依文件套用 v2 relay 遷移並指定管理員。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
 
@@ -22,16 +24,16 @@
 
 ## 取得 Windows 桌面版
 
-透過下方連結直接下載 **v0.4.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
+透過下方連結直接下載 **v0.4.1**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
 執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
 | 下載 | 用途 |
 | --- | --- |
-| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
-| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/AI-Project-Hub-0.4.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/AI-Project-Hub-0.4.1-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.4.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.0/SHA256SUMS.txt)
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.4.1) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.4.1/SHA256SUMS.txt)
 
 v0.4.0 已設定正式 GitHub 更新來源。從 v0.3.0 升級仍需手動下載本版，因舊版未設定更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
@@ -174,7 +176,7 @@ npm run test:desktop
 
 `npm run test:ui` **只建立 UI fixtures**，包括範例儲存庫及 `.local/verification/hub.sqlite`。它不是 UI 測試執行器，也不會啟動或驗證 App。
 
-v0.4.0 發行建置已通過 26 個測試檔／400 個案例、31 項打包桌面檢查、9 項打包 Git 檢查及 4 組免安裝生命週期檢查，沒有跳過項目；安裝版更新中繼資料亦已核對實際安裝包。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。詳見[本版驗證](docs/RELEASE-0.4.0.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)；自行建置仍須重新驗證。
+v0.4.1 發行建置已通過 26 個測試檔／400 個案例、32 項打包桌面檢查（含分享欄位全選）及 4 組免安裝生命週期檢查，沒有跳過項目；安裝版更新中繼資料亦已核對實際安裝包。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。詳見[本版驗證](docs/RELEASE-0.4.1.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)；自行建置仍須重新驗證。
 
 ### 可選的 web 開發模式
 

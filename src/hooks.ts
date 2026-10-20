@@ -19,15 +19,15 @@ export function useWorkspace() {
   const mutation = useRef(false);
   const alive = useRef(true);
   const ready = useRef(false);
-  const reload = useCallback(async () => {
-    if (mutation.current) return;
+  const reload = useCallback(async (throwOnError = false) => {
+    if (mutation.current) { if (throwOnError) throw new LocalizedError(clientMessages, 'languageBusy'); return; }
     const current = ++sequence.current;
     try {
       const next = await api.workspace();
       if (alive.current && sequence.current === current) {
         ready.current = true; setWorkspace(next); setError(null); setLastLoaded(new Date());
       }
-    } catch (err) { if (alive.current && sequence.current === current) setError(err); }
+    } catch (err) { if (alive.current && sequence.current === current) setError(err); if (throwOnError) throw err; }
     finally { if (alive.current && sequence.current === current) setLoading(false); }
   }, []);
   const updateLocale = useCallback(async (nextLocale: Locale) => {
@@ -175,8 +175,8 @@ export function useDeviceResource<T>(load: () => Promise<T>) {
   const sequence = useRef(0);
   const scope = useRef(load); scope.current = load;
   const alive = useRef(true);
-  const reload = useCallback(async () => {
-    if (!alive.current || scope.current !== load) return;
+  const reload = useCallback(async (throwOnError = false) => {
+    if (!alive.current || scope.current !== load) { if (throwOnError) throw new LocalizedError(clientMessages, 'deviceBusy'); return; }
     const current = ++sequence.current;
     const valid = () => alive.current && scope.current === load && current === sequence.current;
     try {
@@ -184,6 +184,7 @@ export function useDeviceResource<T>(load: () => Promise<T>) {
       if (valid()) setSnapshot({ load, data, error: null, loading: false });
     } catch (error) {
       if (valid()) setSnapshot(previous => ({ load, data: previous?.load === load ? previous.data : null, error, loading: false }));
+      if (throwOnError) throw error;
     }
   }, [load]);
   useEffect(() => {

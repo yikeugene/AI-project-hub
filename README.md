@@ -14,6 +14,8 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 **Upgrade notice:** v0.5.0 migrates the local database to **schema v4**. Quit Hub completely and back up the full data directory before upgrading. Older apps cannot open the upgraded database; reverting requires a compatible pre-upgrade backup.
 
+**Unreleased source feature:** Shared Workspace now offers a copy-only **AI fill-in prompt** and **Import Markdown**. Existing exported summaries can update only the matching local project's nonblank memory fields and next action, after a before/after preview and explicit confirmation. Missing/blank fields preserve local content; no AI API or new filesystem permission is required. See [Markdown import and prompt guide](docs/MARKDOWN-IMPORT.md). The v0.5.0 downloads above do not include this addition.
+
 ## What you can do
 
 - **Find your projects:** preview a folder scan and choose which projects to add, without moving files or running project code.

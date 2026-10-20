@@ -162,7 +162,12 @@ describe('desktop device UI boundaries', () => {
   it('renders the shared workspace as readonly escaped summaries with real source and cached state', () => {
     const item = { ...sharedItem, project: { ...sharedItem.project, name: '<script>alert(1)</script>', memory: { notes: '<img src=x onerror=alert(1)>' } } };
     const markup = renderToStaticMarkup(createElement(SharedWorkspaceView, { data: { groups: [groupA, groupB], items: [item, { ...item, profileId: groupB.id }] }, selected: item, profileId: '', query: '', loading: false, error: '', onFilter: () => {}, onSearch: () => {}, onSelect: () => {}, onReload: async () => {}, onSettings: () => {}, onBusyChange: () => {} }));
-    expect(markup).toContain('Download Markdown'); expect(markup).toContain('Read-only summary');
+    expect(markup).toContain('Download Markdown'); expect(markup).toContain('AI fill-in prompt'); expect(markup).toContain('Read-only summary');
+    expect(markup).toContain('matching existing local project, after preview and confirmation');
+    expect(markup).not.toContain('No in-app import');
+    const detailActions = markup.slice(markup.indexOf('class="panel remote-project-detail'));
+    expect(detailActions.match(/<button\b/g)).toHaveLength(2); // Readonly prompt + download, never local editing.
+    expect(detailActions).not.toContain('markdown-import-open');
     expect(markup).toContain('Last group sync'); expect(markup).toContain('not a live view');
     expect(markup).toContain(groupA.id); expect(markup).toContain(owner); expect(markup).toContain(projectId);
     expect(markup).toContain('&lt;script&gt;alert(1)&lt;/script&gt;'); expect(markup).not.toContain('<script>'); expect(markup).not.toContain('<img src=x');
@@ -175,6 +180,19 @@ describe('desktop device UI boundaries', () => {
     const migrated = renderToStaticMarkup(createElement(SharedSummaryDetail, { item: { ...sharedItem, owned: true, pending: false, publishedAt: null }, group: groupA }));
     expect(migrated).toContain('Published to group'); expect(migrated).not.toContain('Not published yet');
     expect(migrated).not.toContain('Pending sync');
+  });
+  it('disables both downloads and prompt preparation when visibility cannot be validated', () => {
+    for (const options of [
+      { groups: [groupA], items: [sharedItem], error: 'Cache read failed' },
+      { groups: [{ ...groupA, paired: false }], items: [sharedItem], error: '' },
+      { groups: [groupA], items: [], error: '' },
+      { groups: [groupA], items: [{ ...sharedItem, version: sharedItem.version + 1 }], error: '' },
+    ]) {
+      const markup = renderToStaticMarkup(createElement(SharedWorkspaceView, { data: { groups: options.groups, items: options.items }, selected: sharedItem, profileId: '', query: '', loading: false, error: options.error, onFilter: () => {}, onSearch: () => {}, onSelect: () => {}, onReload: async () => {}, onSettings: () => {}, onBusyChange: () => {} }));
+      const footer = markup.slice(markup.indexOf('class="remote-proposal-footer"'));
+      expect(footer.match(/<button\b[^>]*disabled=""/g)).toHaveLength(2);
+      expect(footer).not.toContain('markdown-prompt-dialog');
+    }
   });
   it('preserves native download cancellation and surfaces save failures', async () => {
     const saveText = vi.fn(async () => false);

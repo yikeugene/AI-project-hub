@@ -18,6 +18,8 @@ import { deviceRouter, type DeviceService } from './devices.js';
 import { gitRouter } from './git-router.js';
 import type { GitApprovalService } from './git-approvals.js';
 import type { GovernanceService } from './governance.js';
+import { MAX_MARKDOWN_BYTES } from '../shared/markdown-import.js';
+import { markdownImportRouter } from './markdown-import.js';
 
 export interface AppOptions {
   store: Store; dataDir: string;
@@ -66,6 +68,7 @@ export function createApp(options: AppOptions) {
   // A <=1 MiB pasted string may expand up to sixfold in its JSON request envelope.
   // Keep all other routes at their existing limit; the pure parser bounds decoded UTF-8 text.
   app.use('/api/projects/:id/shared-state/paste', express.json({ limit: MAX_STATE_BYTES * 6 + 1024 }));
+  app.post(['/api/markdown-import/preview', '/api/markdown-import/apply'], express.json({ limit: MAX_MARKDOWN_BYTES * 6 + 1024 }));
   app.use('/api/desktop-apps/:app/open', express.json({ limit: '1mb', verify: (_req, _res, bytes) => {
     // express.json otherwise normalizes an empty body to {}, which is not a JSON request.
     if (!bytes.length) throw appError(400, 'request.emptyObject');
@@ -210,6 +213,7 @@ export function createApp(options: AppOptions) {
     catch (error) { console.warn(coreTranslator(settings.locale)('runtime.settingsCallback'), error); }
     res.json(settings);
   });
+  app.use('/api/markdown-import', markdownImportRouter(store, options.deviceService));
   if (options.deviceService) app.use('/api', deviceRouter(options.deviceService));
   if (options.gitService && options.governanceService) app.use('/api', gitRouter(options.gitService, options.governanceService));
   app.use('/api', (_req, res) => { res.status(404).json(errorResponse('request.notFound', locale())); });

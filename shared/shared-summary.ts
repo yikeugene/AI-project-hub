@@ -23,20 +23,26 @@ function filename(name: string, projectId: string, version: number) {
   return `${stem}-${projectId.slice(0, 8)}-v${version}.md`;
 }
 
-/** Only the strict allowlisted projection and provenance enter this formatter; never a local Project or handoff. */
-export function formatSharedSummary(project: SharedProject, source: SharedSummarySource, locale: Locale = DEFAULT_LOCALE): SummaryDownload {
-  const shared = sharedProjectSchema.parse(project), metadata = sourceSchema.parse(source);
-  const labels = locale === 'zh-TW' ? {
+/** Stable vocabulary for the v0.5.0 Markdown format, shared by export and import. */
+export const SHARED_SUMMARY_LABELS = {
+  'zh-TW': {
     summary: '共享專案摘要', group: '來源群組', owner: '擁有裝置', project: '專案識別碼', version: '共享版本', revision: '專案修訂',
     state: '發布狀態', pending: '待同步（此版本尚未確認發布）', acknowledged: '已確認的共享版本', published: '發布確認時間', received: '快取接收時間',
     synced: '群組上次同步', unknown: '尚無記錄', status: '狀態', priority: '優先級', stage: '階段', next: '下一步行動', memory: '已共享記憶欄位',
     note: '唯讀共享摘要，並非實際檔案。離線快取可能不是最新內容；已下載的副本不會被遠端收回。',
-  } : {
+  },
+  en: {
     summary: 'Shared project summary', group: 'Source group', owner: 'Owner device', project: 'Project ID', version: 'Shared version', revision: 'Project revision',
     state: 'Publication state', pending: 'Pending sync (this version is not acknowledged as published)', acknowledged: 'Acknowledged shared version', published: 'Publication acknowledgement', received: 'Cache received',
     synced: 'Group last synced', unknown: 'Not recorded', status: 'Status', priority: 'Priority', stage: 'Stage', next: 'Next action', memory: 'Shared memory fields',
     note: 'Read-only shared summary, not actual files. Offline cache may not be current; downloaded copies cannot be recalled remotely.',
-  };
+  },
+} as const;
+
+/** Only the strict allowlisted projection and provenance enter this formatter; never a local Project or handoff. */
+export function formatSharedSummary(project: SharedProject, source: SharedSummarySource, locale: Locale = DEFAULT_LOCALE): SummaryDownload {
+  const shared = sharedProjectSchema.parse(project), metadata = sourceSchema.parse(source);
+  const labels = SHARED_SUMMARY_LABELS[locale];
   const memoryLabels = getMemoryLabels(locale), statusLabels = getStatusLabels(locale), priorityLabels = getPriorityLabels(locale);
   const lines = [`# ${inline(shared.name)}`, '', labels.summary, '',
     `- ${labels.group}: ${inline(metadata.groupLabel)} (${metadata.profileId})`,

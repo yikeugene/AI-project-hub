@@ -3,6 +3,7 @@ import { PROFILE_HEADER } from '../shared/devices';
 import type { ApplyProposalInput, CachedSnapshot, ComposeMessageInput, DeviceState, GroupShareInput, GroupSharingPreview, Invitation, MessageView, PairInput, ProposalPreview, SharedPreview, SharePolicy, SharedWorkspaceItem, SharedWorkspaceState, SummaryDownload } from '../shared/devices';
 import type { GitApproval, GitAuditEvent, GitDetails, GitDiff, GitDiffInput, GitOperation, GitPreview, GitRequestView } from '../shared/git';
 import type { DeviceRole, GovernanceState, StatusSharingPolicy, StatusSharingPreview } from '../shared/governance';
+import type { MarkdownImportApplyInput, MarkdownImportPreview } from '../shared/markdown-import';
 
 import { DEFAULT_LOCALE, LocalizedError, translate, type Locale, type MessageParams } from '../shared/i18n';
 import { isErrorCode, translateError } from '../shared/messages';
@@ -60,6 +61,10 @@ export const api = {
   openDesktopApp: (app: DesktopApp) => request<{ ok: true }>(`/desktop-apps/${app}/open`, 'POST', {}),
   open: (id: string, action: LaunchAction) => request<{ ok: true }>(`${projectUrl(id)}/open`, 'POST', { action }),
   settings: (settings: Partial<Settings>) => request<Settings>('/settings', 'PATCH', settings),
+};
+export const markdownApi = {
+  preview: (text: string) => request<MarkdownImportPreview>('/markdown-import/preview', 'POST', { text }),
+  apply: (input: MarkdownImportApplyInput) => request<Project>('/markdown-import/apply', 'POST', input),
 };
 const deviceUrl = (id: string) => `/devices/${encodeURIComponent(id)}`;
 const messageUrl = (id: string) => `/messages/${encodeURIComponent(id)}`;

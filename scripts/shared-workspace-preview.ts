@@ -80,7 +80,8 @@ const server = createServer(async (req, res) => {
     const name = /(?:^|;\s*)hub-fixture-device=(viewer|author)(?:;|$)/.exec(req.headers.cookie ?? '')?.[1] ?? 'viewer';
     const peer = peers.get(name)!;
     const chunks: Buffer[] = []; let bytes = 0;
-    for await (const raw of req) { const chunk = Buffer.from(raw); bytes += chunk.length; if (bytes > 1024 * 1024) { res.writeHead(413).end(); return; } chunks.push(chunk); }
+    const bodyLimit = /^\/api\/markdown-import\/(?:preview|apply)\/?$/i.test(url.pathname) ? 6 * 1024 * 1024 + 4096 : 1024 * 1024;
+    for await (const raw of req) { const chunk = Buffer.from(raw); bytes += chunk.length; if (bytes > bodyLimit) { res.writeHead(413).end(); return; } chunks.push(chunk); }
     const headers = new Headers();
     for (const key of ['content-type', 'x-hub-token', 'x-hub-profile-id', 'accept']) if (typeof req.headers[key] === 'string') headers.set(key, req.headers[key] as string);
     headers.set(DESKTOP_KEY_HEADER, peer.secret); headers.set('origin', peer.runtime.origin);

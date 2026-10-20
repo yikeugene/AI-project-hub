@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, CircleCheck, FolderKanban, FolderSearch, Monitor, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowRight, CircleCheck, FileInput, FolderKanban, FolderSearch, Monitor, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { Project } from '../shared/types';
 import type { Locale } from '../shared/i18n';
 import { isStale } from '../shared/insights';
@@ -24,6 +24,8 @@ import { RemoteProjectsPanel } from './panels/RemoteProjectsPanel';
 import { TasksPanel } from './panels/TasksPanel';
 import { GitApprovalPanel } from './panels/GitApprovalPanel';
 import { SharedWorkspacePanel } from './panels/SharedWorkspacePanel';
+import { MarkdownImportDialog } from './components/MarkdownImportDialog';
+import { markdownImportMessages } from './locales/markdown-import';
 
 const pageText: Record<View, { title: ShellKey; description: ShellKey }> = {
   dashboard: { title: 'page.dashboard.title', description: 'page.dashboard.description' },
@@ -41,7 +43,7 @@ interface Route { view: View; deviceId?: string }
 export default function App() {
   const { workspace, loading, error, reload, lastLoaded, updateLocale, localeBusy } = useWorkspace();
   const { locale, setLocale } = useI18n();
-  const t = useT(shellCatalog);
+  const t = useT(shellCatalog); const mt = useT(markdownImportMessages);
   const savedLocale = workspace?.settings.locale;
   useEffect(() => { if (savedLocale) setLocale(savedLocale); }, [savedLocale, setLocale]);
   const devices = useDevices();
@@ -60,6 +62,16 @@ export default function App() {
   const [inboxBusy, setInboxBusy] = useState(false);
   const [sharedBusy, setSharedBusy] = useState(false);
   const [sharedVersion, setSharedVersion] = useState(0);
+  const [markdownImportOpen, setMarkdownImportOpen] = useState(false);
+  const [markdownImportDirty, setMarkdownImportDirty] = useState(false);
+  const [markdownImportBusy, setMarkdownImportBusy] = useState(false);
+  const sharedReload = useRef<(() => Promise<void>) | null>(null);
+  const onSharedRefreshReady = useCallback((refresh: (() => Promise<void>) | null) => { sharedReload.current = refresh; }, []);
+  const refreshAfterMarkdownImport = useCallback(async () => {
+    // Refresh failure is reported separately by the importer; this never repeats the committed write.
+    await Promise.all([reload(true), sharedReload.current ? sharedReload.current() : deviceApi.workspace().then(() => {})]);
+  }, [reload]);
+  const closeMarkdownImport = useCallback(() => { setMarkdownImportOpen(false); setMarkdownImportDirty(false); setMarkdownImportBusy(false); }, []);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [approvalDirty, setApprovalDirty] = useState(false);
   const [composition, setComposition] = useState<{ target: ComposeTarget; profileId: string | null } | null>(null);
@@ -73,18 +85,23 @@ export default function App() {
   const tasks = workspace?.tasks ?? [];
   const deviceView = view === 'remote' || view === 'inbox' || view === 'sent' || view === 'approvals' || view === 'shared';
   const remoteDevice = devices.state?.paired ? devices.state.devices.find(device => device.id === route.deviceId && device.id !== devices.state?.localDevice.id && !device.revokedAt) : undefined;
-  const routeBusy = composerBusy || cloud.busy || (view === 'settings' && (settingsBusy || deviceBusy)) || (view === 'handoff' && handoffBusy) || ((view === 'inbox' || view === 'sent') && inboxBusy) || (view === 'approvals' && approvalBusy) || (view === 'shared' && sharedBusy);
+  const routeBusy = composerBusy || cloud.busy || (view === 'settings' && (settingsBusy || deviceBusy)) || (view === 'handoff' && handoffBusy) || ((view === 'inbox' || view === 'sent') && inboxBusy) || (view === 'approvals' && approvalBusy) || (view === 'shared' && (sharedBusy || markdownImportBusy));
   const closeComposer = () => { setComposition(null); setComposerDirty(false); setComposerBusy(false); };
   const applyRoute = (next: Route) => {
-    closeComposer(); setSettingsDirty(false); setDeviceDirty(false); setHandoffDirty(false); setInboxBusy(false); setSharedBusy(false); setApprovalBusy(false); setApprovalDirty(false); setSentMessage(null);
+    closeComposer(); closeMarkdownImport(); setSettingsDirty(false); setDeviceDirty(false); setHandoffDirty(false); setInboxBusy(false); setSharedBusy(false); setApprovalBusy(false); setApprovalDirty(false); setSentMessage(null);
     setRoute(next); window.scrollTo({ top: 0 });
   };
   const navigate = (next: Route) => {
     if ((next.view === view && next.deviceId === route.deviceId) || routeBusy) return;
-    if (composerDirty || (view === 'settings' && (settingsDirty || deviceDirty)) || (view === 'handoff' && handoffDirty) || (view === 'approvals' && approvalDirty)) { setPendingRoute(next); return; }
+    if (composerDirty || (view === 'settings' && (settingsDirty || deviceDirty)) || (view === 'handoff' && handoffDirty) || (view === 'approvals' && approvalDirty) || (view === 'shared' && markdownImportDirty)) { setPendingRoute(next); return; }
     applyRoute(next);
   };
-  const openProject = (id: string) => { const project = projects.find(p => p.id === id); if (project) setSelected(project); };
+  const openProject = (id: string) => { if (markdownImportOpen) return; const project = projects.find(p => p.id === id); if (project) setSelected(project); };
+  const openMarkdownImport = () => {
+    // Never close a local editor (or silently discard its memory draft) to open the importer.
+    if (routeBusy || selected || addProject || scan || composition || markdownImportOpen) return;
+    setMarkdownImportOpen(true);
+  };
   const compose = (target: ComposeTarget) => { if (routeBusy || composition || !devices.state) return; setSentMessage(null); setComposition({ target, profileId: devices.state.profileId }); };
   const manualRefresh = async () => {
     setRefreshMessage(null);
@@ -102,11 +119,11 @@ export default function App() {
   return <div className="app-shell"><a href="#main-content" className="skip-link">{t('app.skip')}</a><Sidebar view={view} onNavigate={next => navigate({ view: next })} projectCount={projects.length} taskCount={tasks.filter(task => task.status !== 'done').length} devices={devices.state} selectedDeviceId={route.deviceId} onDevice={id => navigate({ view: 'remote', deviceId: id })} />
     <div className="workspace-shell"><header className="topbar"><div className="breadcrumbs"><span>{view === 'shared' ? t('nav.shared') : view === 'remote' ? remoteDevice?.name || t('app.remoteDevice') : devices.state?.localDevice.name || t('app.personalWorkspace')}</span><span className="breadcrumb-slash">/</span><strong>{view === 'remote' ? t('app.readOnlySummary') : currentNavigation && t(currentNavigation.labelKey)}</strong></div><div className="topbar-right"><div className="language-toggle" role="group" aria-label={t('app.language')} aria-busy={localeBusy || language.busy}><button type="button" lang="en" aria-pressed={locale === 'en'} disabled={!workspace || localeBusy || language.busy} onClick={() => { void switchLocale('en'); }}>{t('app.english')}</button><button type="button" lang="zh-TW" aria-pressed={locale === 'zh-TW'} disabled={!workspace || localeBusy || language.busy} onClick={() => { void switchLocale('zh-TW'); }}>{t('app.traditionalChinese')}</button></div><span className="connection-status"><span className={`local-status-dot ${error ? 'disconnected' : ''}`} />{t(error ? 'app.disconnected' : workspace ? 'app.connected' : 'app.connecting')}</span><span className="topbar-divider" />{deviceView ? <button className="refresh-button" disabled={routeBusy || !devices.state?.desktopAvailable || (view === 'shared' ? !devices.state.groups.some(canSyncGroup) : !canUseNetwork(devices.state) || !devices.state?.enabled || !devices.state.profileId)} onClick={() => { const profileId = devices.state?.profileId; void cloud.run(async () => { if (view === 'shared') { await devices.update(deviceApi.syncAll); setSharedVersion(value => value + 1); } else if (profileId) await devices.update(() => deviceApi.sync(profileId)); }); }} title={t(view === 'shared' ? 'app.syncAllHint' : 'app.syncHint')}><RefreshCw size={15} className={cloud.busy ? 'spin' : ''} /><span>{t(cloud.busy ? 'app.syncing' : view === 'shared' ? 'app.syncAllGroups' : 'app.syncDevices')}</span></button> : <button className="refresh-button" disabled={!workspace || refresh.busy || routeBusy} onClick={() => { void manualRefresh(); }} title={lastLoaded ? t('app.refreshHint', { time: lastLoaded.toLocaleTimeString(locale) }) : t('app.refreshDefaultHint')}><RefreshCw size={15} className={refresh.busy ? 'spin' : ''} /><span>{t(refresh.busy ? 'app.refreshing' : 'app.refresh')}</span></button>}</div></header>
       <main id="main-content" className="main-content" tabIndex={-1}>
-        <div className="page-heading"><div><div className="page-date">{new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())}</div><h1>{t(pageText[view].title)}</h1><p>{t(pageText[view].description)}</p></div>{(view === 'dashboard' || view === 'projects') && <div className="page-actions"><Button icon={FolderSearch} onClick={() => setScan(true)} disabled={!workspace}>{t('app.scanProjects')}</Button><Button variant="primary" icon={Plus} onClick={() => setAddProject(true)} disabled={!workspace}>{t('app.addProject')}</Button></div>}</div>
+        <div className="page-heading"><div><div className="page-date">{new Intl.DateTimeFormat(locale, { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date())}</div><h1>{t(pageText[view].title)}</h1><p>{t(pageText[view].description)}</p></div>{(view === 'dashboard' || view === 'projects') && <div className="page-actions"><Button icon={FolderSearch} onClick={() => setScan(true)} disabled={!workspace}>{t('app.scanProjects')}</Button><Button variant="primary" icon={Plus} onClick={() => setAddProject(true)} disabled={!workspace}>{t('app.addProject')}</Button></div>}{view === 'shared' && <div className="page-actions"><Button className="markdown-import-open" icon={FileInput} onClick={openMarkdownImport} disabled={routeBusy || !!selected || addProject || scan || !!composition || markdownImportOpen}>{mt('open')}</Button></div>}</div>
         <ErrorNotice message={language.error} onDismiss={() => language.setError('')} />
         {error && <div className="workspace-error"><ErrorNotice message={error} /><Button onClick={() => { void reload(); }}>{t('app.reconnect')}</Button></div>}
         {!deviceView && <><ErrorNotice message={refresh.error} onDismiss={() => refresh.setError('')} />{refreshMessage && <p className="refresh-message" role="status"><CircleCheck size={14} />{t(refreshMessage.key, refreshMessage.params)}<button className="text-button" onClick={() => setRefreshMessage(null)}>{t('common.close')}</button></p>}</>}
-        {deviceView ? <><ErrorNotice message={devices.error} onDismiss={() => { void devices.reload(); }} /><ErrorNotice message={cloud.error} onDismiss={() => cloud.setError('')} />{sentMessage && <p className="inline-success" role="status"><CircleCheck size={15} />{t(sentMessage.key, sentMessage.params)}</p>}{!devices.state ? <section className="panel">{devices.loading ? <Loading label={t('app.loadingDevices')} /> : <EmptyState icon={Monitor} title={t('app.devicesUnavailable')} description={t('app.devicesUnavailableDescription')}><Button onClick={() => { void devices.reload(); }}>{t('app.retryDevices')}</Button></EmptyState>}</section> : view === 'shared' ? <SharedWorkspacePanel state={devices.state} refreshVersion={sharedVersion} onSettings={() => navigate({ view: 'settings' })} onBusyChange={setSharedBusy} /> : view === 'approvals' ? <GitApprovalPanel key={`${devices.state.profileId}:approvals`} devices={devices.state} governance={governance} onDirtyChange={setApprovalDirty} onBusyChange={setApprovalBusy} /> : view === 'remote' ? remoteDevice ? <RemoteProjectsPanel key={`${devices.state.profileId}:${remoteDevice.id}`} device={remoteDevice} state={devices.state} governance={governance} onCompose={compose} /> : <section className="panel"><EmptyState icon={Monitor} title={t('app.deviceMissing')} description={t('app.deviceMissingDescription')} /></section> : <InboxPanel key={`${devices.state.profileId}:${view}`} box={view === 'sent' ? 'sent' : 'inbox'} state={devices.state} projects={projects} onCompose={compose} onChange={async () => { await Promise.all([reload(), devices.reload()]); }} onBusyChange={setInboxBusy} />}</> : loading ? <div className="panel"><Loading /></div> : !workspace ? <section className="panel service-unavailable"><FolderKanban size={34} strokeWidth={1.4} /><h2>{t('app.workspaceUnavailable')}</h2><p>{t('app.workspaceUnavailableDescription')}</p><Button variant="primary" icon={RefreshCw} onClick={() => { void reload(); }}>{t('app.reconnect')}</Button></section> : <>
+        {deviceView ? <><ErrorNotice message={devices.error} onDismiss={() => { void devices.reload(); }} /><ErrorNotice message={cloud.error} onDismiss={() => cloud.setError('')} />{sentMessage && <p className="inline-success" role="status"><CircleCheck size={15} />{t(sentMessage.key, sentMessage.params)}</p>}{!devices.state ? <section className="panel">{devices.loading ? <Loading label={t('app.loadingDevices')} /> : <EmptyState icon={Monitor} title={t('app.devicesUnavailable')} description={t('app.devicesUnavailableDescription')}><Button onClick={() => { void devices.reload(); }}>{t('app.retryDevices')}</Button></EmptyState>}</section> : view === 'shared' ? <SharedWorkspacePanel state={devices.state} refreshVersion={sharedVersion} onSettings={() => navigate({ view: 'settings' })} onBusyChange={setSharedBusy} onRefreshReady={onSharedRefreshReady} /> : view === 'approvals' ? <GitApprovalPanel key={`${devices.state.profileId}:approvals`} devices={devices.state} governance={governance} onDirtyChange={setApprovalDirty} onBusyChange={setApprovalBusy} /> : view === 'remote' ? remoteDevice ? <RemoteProjectsPanel key={`${devices.state.profileId}:${remoteDevice.id}`} device={remoteDevice} state={devices.state} governance={governance} onCompose={compose} /> : <section className="panel"><EmptyState icon={Monitor} title={t('app.deviceMissing')} description={t('app.deviceMissingDescription')} /></section> : <InboxPanel key={`${devices.state.profileId}:${view}`} box={view === 'sent' ? 'sent' : 'inbox'} state={devices.state} projects={projects} onCompose={compose} onChange={async () => { await Promise.all([reload(), devices.reload()]); }} onBusyChange={setInboxBusy} />}</> : loading ? <div className="panel"><Loading /></div> : !workspace ? <section className="panel service-unavailable"><FolderKanban size={34} strokeWidth={1.4} /><h2>{t('app.workspaceUnavailable')}</h2><p>{t('app.workspaceUnavailableDescription')}</p><Button variant="primary" icon={RefreshCw} onClick={() => { void reload(); }}>{t('app.reconnect')}</Button></section> : <>
           {view === 'dashboard' && <><dl className="number-strip" aria-label={t('app.overview')}><div><dt>{t('app.trackedProjects')}</dt><dd>{projects.filter(p => p.status !== 'archived').length}<span>{t('app.projectUnit')}</span></dd></div><div><dt><span className="metric-dot active-dot" />{t('app.active')}</dt><dd>{projects.filter(p => p.status === 'active').length}</dd></div><div><dt>{t('app.openTasks')}</dt><dd>{tasks.filter(task => task.status !== 'done').length}</dd></div><div><dt>{t('app.staleCommits')}<span className="metric-note">{t('app.days', { count: workspace.settings.staleDays })}</span></dt><dd>{projects.filter(p => p.status !== 'archived' && p.status !== 'completed' && isStale(p, workspace.settings.staleDays)).length}</dd></div></dl><div className="dashboard-grid"><ProjectTable projects={projects} tasks={tasks} staleDays={workspace.settings.staleDays} onOpen={openProject} onAdd={() => setAddProject(true)} onScan={() => setScan(true)} /><FocusPanel projects={projects} tasks={tasks} staleDays={workspace.settings.staleDays} onOpen={openProject} /></div><div className="workbench-footer"><span><ShieldCheck size={15} />{t('app.localFirst')}</span><button className="text-button" onClick={() => navigate({ view: 'handoff' })}>{t('app.aboutHandoff')}<ArrowRight size={14} /></button></div></>}
           {view === 'projects' && <ProjectTable fullView projects={projects} tasks={tasks} staleDays={workspace.settings.staleDays} onOpen={openProject} onAdd={() => setAddProject(true)} onScan={() => setScan(true)} />}
           {view === 'tasks' && <TasksPanel projects={projects} tasks={tasks} onChange={reload} onOpenProject={openProject} />}
@@ -115,10 +132,11 @@ export default function App() {
         </>}
       </main>
     </div>
+    {markdownImportOpen && <MarkdownImportDialog onClose={closeMarkdownImport} onImported={refreshAfterMarkdownImport} onDirtyChange={setMarkdownImportDirty} onBusyChange={setMarkdownImportBusy} />}
     {workspace && addProject && <ProjectForm categories={categories} onClose={() => setAddProject(false)} onSaved={reload} />}
     {workspace && scan && <ScanDialog roots={workspace.settings.scanRoots} projects={projects} onClose={() => setScan(false)} onImported={reload} />}
     {workspace && selectedProject && <ProjectDetail key={selectedProject.id} project={selectedProject} projects={projects} tasks={tasks} devices={devices.state} governance={governance} capabilities={workspace.environment.capabilities} desktopApps={workspace.environment.desktopApps} onClose={() => setSelected(null)} onChange={reload} />}
     {composition && devices.state && <MessageComposer target={composition.target} state={composition.profileId === devices.state.profileId ? devices.state : { ...devices.state, paired: false }} onClose={closeComposer} onDirtyChange={setComposerDirty} onBusyChange={setComposerBusy} onSent={async () => { await devices.reload(); setSentMessage({ key: 'app.messageQueued' }); }} />}
-    {pendingRoute && <ConfirmDialog title={t(composerDirty ? 'app.unsentDraft' : view === 'handoff' ? 'app.unimportedJson' : view === 'approvals' ? 'app.unsubmittedDecision' : 'app.unsavedSettings')} confirmLabel={t('app.discardAndLeave')} danger onClose={() => setPendingRoute(null)} onConfirm={() => { applyRoute(pendingRoute); setPendingRoute(null); }}><p>{t(composerDirty ? 'app.discardMessage' : view === 'handoff' ? 'app.discardHandoff' : view === 'approvals' ? 'app.discardDecision' : 'app.discardSettings')}</p></ConfirmDialog>}
+    {pendingRoute && <ConfirmDialog title={markdownImportDirty ? mt('discardTitle') : t(composerDirty ? 'app.unsentDraft' : view === 'handoff' ? 'app.unimportedJson' : view === 'approvals' ? 'app.unsubmittedDecision' : 'app.unsavedSettings')} confirmLabel={t('app.discardAndLeave')} danger onClose={() => setPendingRoute(null)} onConfirm={() => { applyRoute(pendingRoute); setPendingRoute(null); }}><p>{markdownImportDirty ? mt('discardDescription') : t(composerDirty ? 'app.discardMessage' : view === 'handoff' ? 'app.discardHandoff' : view === 'approvals' ? 'app.discardDecision' : 'app.discardSettings')}</p></ConfirmDialog>}
   </div>;
 }

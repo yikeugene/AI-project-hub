@@ -13,6 +13,7 @@ import { formatDate, relativeDate } from '../src/hooks';
 import { I18nProvider } from '../src/i18n';
 import { shellCatalog, type ShellMessage } from '../src/locales/shell';
 import { workspaceMessages } from '../src/locales/panels-workspace';
+import { markdownImportMessages } from '../src/locales/markdown-import';
 import { sharingMessages } from '../src/locales/panels-sharing';
 import { SharedSummaryDetail, SharedWorkspaceView } from '../src/panels/SharedWorkspacePanel';
 import { MemoryShareFields } from '../src/panels/GroupSharingSettings';
@@ -150,6 +151,13 @@ describe('English default and Traditional Chinese rendering', () => {
       const empty = render(createElement(SharedWorkspaceView, { data: { groups: [], items: [] }, profileId: '', query: '', loading: false, error: '', onFilter: () => {}, onSearch: () => {}, onSelect: () => {}, onReload: async () => {}, onSettings: () => {}, onBusyChange: () => {} }), locale);
       expect(empty).toContain(translate(workspaceMessages, locale, 'noGroups'));
       expect(empty).toContain(translate(workspaceMessages, locale, 'settings'));
+      const group = { id: item.profileId, label: item.groupLabel, url: 'https://unused.invalid', networkId: project.id, deviceId: item.ownerDeviceId, enabled: false, paired: true, pairingPending: false, connection: 'disabled' as const, lastSyncAt: null, lastError: null };
+      const selected = render(createElement(SharedWorkspaceView, { data: { groups: [group], items: [item] }, selected: item, profileId: '', query: '', loading: false, error: '', onFilter: () => {}, onSearch: () => {}, onSelect: () => {}, onReload: async () => {}, onSettings: () => {}, onBusyChange: () => {} }), locale);
+      expect(selected).toContain(translate(markdownImportMessages, locale, 'promptOpen'));
+      expect(selected).toContain(translate(workspaceMessages, locale, 'downloadHint'));
+      expect(selected).not.toContain('No in-app import');
+      expect(selected).not.toContain('不提供程式內匯入');
+      expect(markup).not.toMatch(/<textarea|<input|<button/); // The summary body stays readonly in both languages.
       const shell = render(createElement(App), locale);
       expect(shell).toContain(translate(shellCatalog, locale, 'nav.shared'));
     }

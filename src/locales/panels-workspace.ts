@@ -2,7 +2,7 @@ import type { MessageCatalog } from '../../shared/i18n';
 
 const en = {
   title: 'Shared workspace',
-  subtitle: 'Read-only summaries from every joined group. No files are transferred or imported into local projects.',
+  subtitle: 'Read-only summaries from every joined group. Files stay local. Markdown can be manually imported only into the matching existing local project, after preview and confirmation.',
   allGroups: 'All groups', groupFilter: 'Filter by group', search: 'Search shared summaries', searchPlaceholder: 'Project, group, device, or shared text…',
   reload: 'Reload cached summaries', loading: 'Loading shared summaries…',
   noGroups: 'No joined groups yet', noGroupsHint: 'Join a group in Workspace settings. Each project stays private until you explicitly choose its groups.', settings: 'Manage groups',
@@ -10,7 +10,7 @@ const en = {
   noMatches: 'No summaries match', noMatchesHint: 'Try another group or search term. Filtering does not change the management group.', clear: 'Clear filters',
   unavailable: 'Shared summaries could not be loaded', unavailableHint: 'Retry the local device service. Your local projects are unaffected.',
   partial: 'Some groups have not synced successfully. Available summaries are cached, not live.',
-  cacheError: 'Reload failed. Previously loaded summaries are shown; their current visibility could not be checked. Retry before downloading.',
+  cacheError: 'Reload failed. Previously loaded summaries are shown; their current visibility could not be checked. Retry before downloading or preparing an AI prompt.',
   list: 'Shared summary list', detail: 'Read-only shared summary', readonly: 'Read-only summary',
   group: 'Group', owner: 'Owner device', projectId: 'Project ID', versions: 'Summary version / project revision',
   groupId: 'Local group ID: {id}', ownerId: 'Owner ID: {id}', version: 'Summary version {version}',
@@ -19,14 +19,14 @@ const en = {
   pendingNotice: 'This local version is queued for this group. It is not confirmation that the group has received it.',
   published: 'Published', received: 'Received into local cache', lastSync: 'Last group sync', notPublished: 'Not published yet',
   noStage: 'No stage specified', nextAction: 'Next action', notFilled: 'Not filled in', memory: 'Shared memory fields', noMemory: 'No memory fields were shared.', sharedEmpty: '(Shared, but empty)',
-  download: 'Download Markdown', downloaded: 'Markdown saved.', downloadHint: 'Downloads contain only this summary and its source. Saved copies cannot be recalled remotely. No in-app import or collaborative editing.',
+  download: 'Download Markdown', downloaded: 'Markdown saved.', downloadHint: 'Downloads and AI prompts contain only this shared summary. Saved copies cannot be recalled remotely. Return completed Markdown to the matching local project for manual preview and import; this is not collaborative editing.',
   connection: 'Group connection', groupOption: '{label} ({id})', summaryCount: '{count} summaries',
 } as const;
 
 export const workspaceMessages: MessageCatalog<keyof typeof en> = {
   en,
   'zh-TW': {
-    title: '共享工作區', subtitle: '唯讀查看所有已加入群組的摘要；不傳輸檔案，也不匯入本機專案。',
+    title: '共享工作區', subtitle: '唯讀查看所有已加入群組的摘要，檔案留在本機。Markdown 只能經人工預覽與確認，匯入對應的既有本機專案。',
     allGroups: '所有群組', groupFilter: '依群組篩選', search: '搜尋共享摘要', searchPlaceholder: '專案、群組、設備或已共享文字…',
     reload: '重新讀取摘要快取', loading: '讀取共享摘要…',
     noGroups: '尚未加入群組', noGroupsHint: '請在工作台設定加入群組。每個專案在您明確選擇共享群組前都保持私人。', settings: '管理群組',
@@ -34,7 +34,7 @@ export const workspaceMessages: MessageCatalog<keyof typeof en> = {
     noMatches: '沒有符合條件的摘要', noMatchesHint: '請換個群組或搜尋文字；篩選不會切換目前管理群組。', clear: '清除篩選',
     unavailable: '無法讀取共享摘要', unavailableHint: '請重試本機設備服務；本機專案不受影響。',
     partial: '部分群組尚未成功同步。可查看的摘要是快取，不是即時內容。',
-    cacheError: '重新讀取失敗。目前顯示先前載入的摘要，尚無法確認目前可見性；下載前請重試。',
+    cacheError: '重新讀取失敗。目前顯示先前載入的摘要，尚無法確認目前可見性；下載或準備 AI Prompt 前請重試。',
     list: '共享摘要清單', detail: '唯讀共享摘要', readonly: '唯讀摘要',
     group: '群組', owner: '擁有設備', projectId: '專案 ID', versions: '摘要版本／專案修訂版',
     groupId: '本機群組 ID：{id}', ownerId: '擁有設備 ID：{id}', version: '摘要版本 {version}',
@@ -43,7 +43,7 @@ export const workspaceMessages: MessageCatalog<keyof typeof en> = {
     pendingNotice: '這個本機版本正等待傳送至此群組，不代表群組已收到。',
     published: '發布時間', received: '本機快取接收時間', lastSync: '最近群組同步', notPublished: '尚未發布',
     noStage: '尚未指定階段', nextAction: '下一步行動', notFilled: '尚未填寫', memory: '已共享的記憶欄位', noMemory: '未共享記憶欄位。', sharedEmpty: '（已共享，但內容為空）',
-    download: '下載 Markdown', downloaded: 'Markdown 已儲存。', downloadHint: '下載僅包含這份摘要及來源；已儲存的副本無法遠端收回。不提供程式內匯入或協作編輯。',
+    download: '下載 Markdown', downloaded: 'Markdown 已儲存。', downloadHint: '下載與 AI Prompt 只包含這份共享摘要；已儲存的副本無法遠端收回。填好後請交回對應本機專案，人工預覽並匯入；這不是協作編輯。',
     connection: '群組連線', groupOption: '{label}（{id}）', summaryCount: '{count} 份摘要',
   },
 };

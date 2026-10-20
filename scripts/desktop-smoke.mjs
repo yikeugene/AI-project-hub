@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { _electron } from 'playwright-core';
 import releaseSource from './release-source.cjs';
+import { verifyMarkdownImport } from './markdown-import-smoke.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const executableFlag = process.argv.indexOf('--executable');
@@ -499,7 +500,7 @@ try {
   await sharedDetail.getByText('遠端摘要快取', { exact: true }).waitFor();
   await sharedDetail.getByText('這是本機最後取得的摘要，不是即時畫面。群組暫停或離線時，其他地方可能已有較新內容。', { exact: true }).waitFor();
   assert.equal(await sharedDetail.locator('input, textarea, select, [contenteditable="true"], .quick-actions').count(), 0);
-  assert.deepEqual(await sharedDetail.getByRole('button').allTextContents(), ['下載 Markdown']);
+  assert.deepEqual((await sharedDetail.getByRole('button').allTextContents()).sort(), ['AI 填寫 Prompt', '下載 Markdown'].sort());
   assert.equal(await page.locator('.project-detail').count(), 0);
   for (const name of ['新增專案', '掃描專案', '更新狀態', '提出變更請求', '確認匯入內容']) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '同步所有群組', exact: true }).isDisabled(), true);
@@ -578,6 +579,9 @@ try {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: join(work, 'desktop-shared-workspace.png'), fullPage: true });
   checked('Canceling a second native shared-summary save creates no file or stale success message, preserves the earlier file/local project, and requires no live sync or usable relay credentials');
+
+  await verifyMarkdownImport({ page, desktop, work, ownRow, ownSummary, checked });
+  workspace = await page.evaluate(async () => (await fetch('/api/workspace')).json());
 
   await page.locator('.main-nav').getByRole('button', { name: '工作台設定', exact: true }).click();
   const sharingSettings = page.locator('.sharing-settings');

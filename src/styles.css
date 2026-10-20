@@ -1056,6 +1056,40 @@ input:disabled, textarea:disabled, select:disabled { background: #f5f7fb; }
   .joined-group-heading .button, .shared-workspace-panel .button { white-space: normal; }
   .sidebar-group-label { padding: 8px 14px; }
 }
+/* Manual Markdown round trips keep the shared summary itself read-only. */
+.shared-summary-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.markdown-import-dialog .modal-body, .markdown-prompt-dialog .modal-body { min-width: 0; }
+.markdown-import-body > .field { margin-top: 18px; }
+.markdown-import-file-info { margin-top: 8px; overflow-wrap: anywhere; }
+.markdown-import-file-info > span { display: block; }
+.markdown-import-file::file-selector-button { margin-right: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 6px 9px; background: #f5f7fb; color: var(--ink); font: inherit; cursor: pointer; }
+.markdown-import-input, .markdown-prompt-text { font-family: "Cascadia Code", Consolas, "Microsoft JhengHei", monospace; font-size: 12px; line-height: 1.85; background: #fcfcfe; overflow-wrap: anywhere; }
+.markdown-import-input { min-height: 190px; }
+.markdown-prompt-text { min-height: 260px; max-height: 52dvh; }
+.markdown-import-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 12px 0 8px; }
+.markdown-import-preview { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 22px; min-width: 0; }
+.markdown-import-preview h3 { font-size: 13px; margin: 0 0 10px; overflow-wrap: anywhere; }
+.markdown-import-target h3 { font-size: 18px; margin: 6px 0 0; }
+.markdown-import-preview .snapshot-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 14px 0 20px; }
+.markdown-import-preview .snapshot-meta > div, .markdown-import-preview dd { min-width: 0; overflow-wrap: anywhere; }
+.markdown-import-preview small.device-id { display: block; margin-top: 3px; }
+.markdown-import-source, .markdown-import-skipped, .markdown-import-sharing { margin-bottom: 22px; }
+.markdown-import-skipped ul, .markdown-import-sharing ul { list-style: none; padding: 0; margin: 10px 0 0; }
+.markdown-import-skipped li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.markdown-import-skipped li > span + span { color: var(--muted); }
+.markdown-import-sharing li { display: flex; flex-direction: column; gap: 5px; font-size: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.markdown-import-preview .shared-diffs { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 14px; }
+.markdown-import-success { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 12px; }
+.markdown-prompt-source { overflow-wrap: anywhere; margin: 16px 0 12px; }
+@media (max-width: 700px) {
+  .markdown-import-preview .snapshot-meta, .markdown-import-preview .diff-columns { grid-template-columns: minmax(0, 1fr); }
+  .markdown-import-preview .diff-columns > div + div { border-left: 0; border-top: 1px dashed var(--border); }
+  .markdown-import-dialog .button, .markdown-prompt-dialog .button, .markdown-import-open { white-space: normal; }
+  .markdown-import-toolbar { align-items: flex-start; }
+  .markdown-import-toolbar > .button { width: 100%; }
+  .markdown-prompt-text { min-height: 200px; }
+  .shared-summary-actions { width: 100%; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

@@ -1,11 +1,11 @@
-import { ArrowLeftRight, CheckSquare2, FolderKanban, HardDrive, Inbox, LayoutDashboard, Monitor, Send, Settings2 } from 'lucide-react';
+import { ArrowLeftRight, CheckSquare2, FolderKanban, HardDrive, Inbox, LayoutDashboard, Monitor, Send, Settings2, ShieldCheck } from 'lucide-react';
 import type { DeviceState } from '../../shared/devices';
 import { getConnectionLabels, devicePresence, shortDeviceId } from '../device-ui';
 import { formatDate } from '../hooks';
 import { useLocale, useT } from '../i18n';
 import { shellCatalog } from '../locales/shell';
-export type View = 'dashboard' | 'projects' | 'tasks' | 'handoff' | 'settings' | 'remote' | 'inbox' | 'sent';
-export const navigation = [{ id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard }, { id: 'projects', labelKey: 'nav.projects', icon: FolderKanban }, { id: 'tasks', labelKey: 'nav.tasks', icon: CheckSquare2 }, { id: 'handoff', labelKey: 'nav.handoff', icon: ArrowLeftRight }, { id: 'inbox', labelKey: 'nav.inbox', icon: Inbox }, { id: 'sent', labelKey: 'nav.sent', icon: Send }, { id: 'settings', labelKey: 'nav.settings', icon: Settings2 }] as const;
+export type View = 'dashboard' | 'projects' | 'tasks' | 'handoff' | 'settings' | 'remote' | 'inbox' | 'sent' | 'approvals';
+export const navigation = [{ id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard }, { id: 'projects', labelKey: 'nav.projects', icon: FolderKanban }, { id: 'tasks', labelKey: 'nav.tasks', icon: CheckSquare2 }, { id: 'handoff', labelKey: 'nav.handoff', icon: ArrowLeftRight }, { id: 'inbox', labelKey: 'nav.inbox', icon: Inbox }, { id: 'sent', labelKey: 'nav.sent', icon: Send }, { id: 'approvals', labelKey: 'nav.approvals', icon: ShieldCheck }, { id: 'settings', labelKey: 'nav.settings', icon: Settings2 }] as const;
 export function HubMark({ small = false }: { small?: boolean }) {
   return <svg width={small ? 30 : 35} height={small ? 30 : 35} viewBox="0 0 36 36" fill="none" aria-hidden="true"><path d="M7 9h10v10H7zM19 17h10v10H19z" fill="currentColor" /><path d="M19 7h10v8H19zM7 21h10v8H7z" fill="currentColor" opacity=".35" /><path d="M15 14h8v8h-8z" fill="currentColor" /></svg>;
 }

@@ -7,6 +7,7 @@ import { normalizeLocale } from '../shared/i18n.js';
 import type { GitSnapshot, Project, ProjectMemory, Settings, Task } from '../shared/types.js';
 import { appError } from './validation.js';
 import { DEVICE_MIGRATION } from './device-schema.js';
+import { GOVERNANCE_MIGRATION } from './governance-schema.js';
 import type { CreateProjectInput, UpdateProjectInput, CreateTaskInput, UpdateTaskInput } from './validation.js';
 
 type Row = Record<string, string | number | null>;
@@ -38,7 +39,7 @@ export class Store {
     this.db = new DatabaseSync(filename);
     this.db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;');
     const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-    if (version > 2) { this.db.close(); throw appError(400, 'database.newer'); }
+    if (version > 3) { this.db.close(); throw appError(400, 'database.newer'); }
     try {
     if (version === 0) this.db.exec(`
       BEGIN;
@@ -65,6 +66,7 @@ export class Store {
       COMMIT;
     `);
     if (version < 2) this.transaction(() => this.db.exec(DEVICE_MIGRATION));
+    if (version < 3) this.transaction(() => this.db.exec(GOVERNANCE_MIGRATION));
     } catch (error) {
       try { this.db.exec('ROLLBACK'); } catch { /* A failed migration may already have rolled back. */ }
       this.db.close(); throw error;

@@ -56,7 +56,7 @@ function statusPath(record: string, fieldsBeforePath: number): { status: string;
 }
 
 /** Porcelain v2 -z paths are literal UTF-8, not C-quoted strings. Renames occupy two records. */
-export function parseGitStatus(output: string): ParsedStatus {
+export function parseGitStatus(output: string, includeOriginalPath = false): ParsedStatus {
   const records = output.split('\0');
   const changes: GitChange[] = [];
   let branch: string | null = null;
@@ -85,7 +85,10 @@ export function parseGitStatus(output: string): ParsedStatus {
     } else if (/^[12u] /.test(record)) {
       const { status, file } = statusPath(record, record[0] === '1' ? 8 : record[0] === '2' ? 9 : 10);
       changes.push({ path: file, index: status[0], worktree: status[1] });
-      if (record[0] === '2' && !records[++i]) throw appError(400, 'git.rename');
+      if (record[0] === '2') {
+        if (!records[++i]) throw appError(400, 'git.rename');
+        if (includeOriginalPath) changes[changes.length - 1].originalPath = records[i];
+      }
     } else {
       throw appError(400, 'git.record');
     }

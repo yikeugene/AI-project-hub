@@ -2,8 +2,8 @@ import type { MessageCatalog } from '../i18n.js';
 const en = {
   shutdownFailed: 'AI Project Hub could not close', startupFailed: 'AI Project Hub could not start', trusted: 'Only the AI Project Hub main window may perform this operation.',
   directory: 'Choose a local project folder', save: 'Save handoff document', text: 'Text document', invalidSave: 'Choose a Markdown, JSON or text filename and content of at most 1 MB.', invalidClipboard: 'Clipboard content must be text of at most 1 MB.', credentials: 'Secure credential storage is unavailable.',
-  unsaved: 'Unsaved content', closeQuestion: 'Discard unsaved changes and close the window?', closeDetail: 'Continue editing to save your memory or export a draft first.', continueEditing: 'Continue editing', discardClose: 'Discard and close',
-  file: 'File', quit: 'Quit AI Project Hub', edit: 'Edit', undo: 'Undo', redo: 'Redo', cut: 'Cut', copy: 'Copy', paste: 'Paste', selectAll: 'Select all', view: 'View', actualSize: 'Actual size', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fullscreen: 'Full screen', help: 'Help', about: 'About AI Project Hub',
+  unsaved: 'Unsaved content', closeQuestion: 'Discard unsaved changes and close the window?', closeDetail: 'Continue editing to save your changes or export a draft first.', continueEditing: 'Continue editing', discardClose: 'Discard and close',
+  file: 'File', open: 'Open AI Project Hub', quit: 'Quit AI Project Hub', edit: 'Edit', undo: 'Undo', redo: 'Redo', cut: 'Cut', copy: 'Copy', paste: 'Paste', selectAll: 'Select all', view: 'View', actualSize: 'Actual size', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fullscreen: 'Full screen', help: 'Help', about: 'About AI Project Hub',
   aboutDetail: 'A local-first project workbench.\nClaude / ChatGPT Desktop handoffs use explicit copying and pasted checkpoints.\nHub does not read chats or send messages to chat apps automatically.',
   updateTitle: 'Software updates', updateIntro: 'Updates are checked and downloaded only when you choose. Ordinary app exit never installs an update.',
   currentVersion: 'Current version', check: 'Check for updates', download: 'Download update', install: 'Restart and update', releases: 'Open GitHub Releases',
@@ -14,8 +14,8 @@ const en = {
 const zh: Record<keyof typeof en, string> = {
   shutdownFailed: 'AI Project Hub 關閉失敗', startupFailed: 'AI Project Hub 無法啟動', trusted: '只接受 AI Project Hub 主視窗的操作。',
   directory: '選擇本機專案資料夾', save: '儲存交接文件', text: '文字文件', invalidSave: '請使用 Markdown、JSON 或文字檔名，內容不得超過 1 MB。', invalidClipboard: '剪貼簿內容必須為文字，且不得超過 1 MB。', credentials: '安全憑證儲存不可用。',
-  unsaved: '還有尚未儲存的內容', closeQuestion: '要捨棄尚未儲存的變更並關閉視窗嗎？', closeDetail: '選擇繼續編輯，可先儲存記憶或匯出草稿。', continueEditing: '繼續編輯', discardClose: '捨棄變更並關閉',
-  file: '檔案', quit: '關閉 AI Project Hub', edit: '編輯', undo: '復原', redo: '重做', cut: '剪下', copy: '複製', paste: '貼上', selectAll: '全選', view: '檢視', actualSize: '實際大小', zoomIn: '放大', zoomOut: '縮小', fullscreen: '全螢幕', help: '說明', about: '關於 AI Project Hub',
+  unsaved: '還有尚未儲存的內容', closeQuestion: '要捨棄尚未儲存的變更並關閉視窗嗎？', closeDetail: '選擇繼續編輯，可先儲存變更或匯出草稿。', continueEditing: '繼續編輯', discardClose: '捨棄變更並關閉',
+  file: '檔案', open: '開啟 AI Project Hub', quit: '完全退出 AI Project Hub', edit: '編輯', undo: '復原', redo: '重做', cut: '剪下', copy: '複製', paste: '貼上', selectAll: '全選', view: '檢視', actualSize: '實際大小', zoomIn: '放大', zoomOut: '縮小', fullscreen: '全螢幕', help: '說明', about: '關於 AI Project Hub',
   aboutDetail: '本機優先的個人開發控制中心。\nClaude／ChatGPT Desktop 使用明確複製及貼回 checkpoint 的交接流程。\n不自動讀取對話或向聊天 App 傳送訊息。',
   updateTitle: '軟件更新', updateIntro: '只在您選擇時檢查與下載。一般關閉軟件不會安裝更新。',
   currentVersion: '目前版本', check: '檢查更新', download: '下載更新', install: '重啟並更新', releases: '開啟 GitHub Releases',

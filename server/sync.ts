@@ -22,7 +22,7 @@ export class SyncWorker {
   private failures = 0;
   private cursor: string | null = null;
   private cursorProfile: string | null = null;
-  constructor(private repository: DeviceStore, private session: () => SyncSession | null, private current: (session: SyncSession) => boolean) {}
+  constructor(private repository: DeviceStore, private session: () => SyncSession | null, private current: (session: SyncSession) => boolean, private afterSync?: () => Promise<void>) {}
   start() {
     if (this.timer || this.stopped) return;
     this.timer = setInterval(() => { if (this.repository.clock() >= this.nextAt) void this.syncNow(); }, 15000);
@@ -138,7 +138,8 @@ export class SyncWorker {
         this.repository.checkedStatuses(profile.id, ids);
       }
       guard(); this.repository.setConnection(profile.id, 'online', publicationErrors.length ? translateError('device.publicationErrors', this.repository.store.getSettings().locale) : null, true);
-      this.failures = 0; this.nextAt = this.repository.clock() + 15000;
+      await this.afterSync?.();
+      guard(); this.failures = 0; this.nextAt = this.repository.clock() + 15000;
     } catch (error) {
       const safe = syncError(error, this.repository.store.getSettings().locale);
       if (session && this.current(session) && !signal.aborted && !this.stopped) {

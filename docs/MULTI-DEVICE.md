@@ -4,15 +4,17 @@
 
 這是 **Windows 桌面 App 的可選功能，不是網站或手機版**。整合預設關閉；沒有雲端設定時，原有本機專案、SQLite、掃描及編輯功能仍可使用。交付程式與 SQL 不會替你建立 Supabase 帳號、購買方案、部署網站、建立雲端專案或上傳現有資料。
 
-每台電腦保有自己的權威資料。其他設備只能查看你明確分享的白名單摘要、傳送文字訊息，或提出 `nextAction`／部分記憶欄位的變更請求。請求必須在資料所屬電腦預覽並確認；不會轉成 shell、檔案操作、遠端終端機或啟動程式指令，也不會同步 SQLite 或整份 workspace。
+每台電腦保有自己的權威資料。其他設備只能查看你明確分享的白名單摘要、傳送文字訊息、提出 `nextAction`／部分記憶欄位的變更請求，或審閱明確提交給指定管理員的單次 Git 操作摘要。記憶變更須由資料所屬電腦預覽並確認；Git 另走「管理員批准 → 原機再次確認 → 線上一次性授權」流程。任何訊息、批准或背景同步都不會自行啟動 Git，也沒有任意 shell／argv／cwd、遠端終端機或整份 workspace／SQLite 同步。
 
-- 傳輸使用 HTTPS/TLS 與可撤銷設備憑證，**不是端對端加密**。Supabase、雲端管理方及具有資料庫管理權限的人可讀取已分享摘要、訊息及設備資訊。
-- 預設不分享專案。啟用某專案後，所有有效配對設備都可讀取其選取欄位；記憶欄位必須另行勾選。請先檢查分享預覽。
-- 自動摘要不包含專案路徑、原始碼、Git commit 文字或金鑰欄位。但若你自行把秘密、路徑或原始碼貼入文字訊息／選取的記憶欄位，這些文字仍會傳出。
+本文描述目前原始碼的 v2 升級，不表示既有 v0.3.0 發行資產已重新建置，也不代表 SQL 已部署到你的雲端。Git 操作界線與結果不明的處理另見 [GIT-SAFETY.md](GIT-SAFETY.md)。
+
+- 傳輸使用 HTTPS/TLS 與可撤銷設備憑證，**不是端對端加密**。Supabase、雲端管理方及具有資料庫管理權限的人可讀取已分享摘要、審批摘要、訊息及設備資訊。
+- 預設不分享專案。啟用某專案後，所有有效配對設備都可讀取其選取欄位；記憶欄位必須另行勾選。活動、Git 摘要及手動任務計數是**另外的 opt-in**，不因既有專案已分享就自動開啟。
+- 一般自動摘要不包含專案絕對路徑、原始碼、patch、commit 訊息或憑證。但單次 Git 審批會明確預覽並傳出相對檔名、分支／ref、remote URL、commit 訊息與作者等必要中繼資料給指定審批者；diff／檔案內容與本機根路徑不屬於雲端 DTO。文字仍可能敏感；不要自行把秘密或原始碼貼入訊息、記憶欄位或審批文字。
 - 撤回分享會發佈 tombstone；每次真正開始發送摘要前會重新核對目前的分享欄位及專案是否存在，避免把較早排隊的內容送出。已開始的網路請求可能已送達，不能追溯取消。撤銷設備會停止其後的授權，但不能保證從對方既有快取、匯出或備份中抹除已讀資料。
 - 若之後的本機編輯讓選定摘要超過 256 KiB，該專案會排程撤下舊摘要，不再送出舊排隊內容；其他專案與訊息繼續同步。分享政策仍可讀取，可減少欄位或取消分享，修正內容後可恢復發佈。
-- 每台有效配對設備同等受信任，均可發邀請或撤銷同一群組內的設備；這不是具有管理員／訪客分級的團隊權限系統。
-- **App 關閉、電腦休眠／關機時不輪詢、不接收、不執行請求。** 本功能不保證關閉視窗後的背景代理或筆電闔蓋後執行。
+- 角色為 **admin／member**，由伺服器按 token 決定，不信任客戶端宣稱。一般有效成員可發普通邀請，但新設備只成為 member。只有有效 admin 可授予／撤回管理員角色、撤銷設備或決定分派給自己的 Git 申請；禁止移除最後一位有效 admin。舊版 `hub_revoke` 也套用 admin-only 規則，不能用舊客戶端繞過。
+- 系統匣可用時，**關閉視窗只會隱藏，runtime 仍可同步**；系統匣可恢復視窗或完全退出。沒有登入自啟或 Windows service。完全退出、休眠／關機後不輪詢或開始新工作，也不阻止睡眠；離線期間不能替另一台電腦回報即時狀態。
 
 ## 手動設定自己的 Supabase 專案
 
@@ -29,34 +31,55 @@
 
 如果組織限制上述操作，請由資料庫管理員先核准或執行。**不要**改成對 `PUBLIC`／`anon` 開放私有表，不要把 `hub_private` 加入 exposed schemas，也不要把 service key 放進 App 來繞過限制。
 
-### 2. 執行遷移一次
+### 2. 依序執行兩份遷移，各執行一次
 
-在 SQL Editor 貼入並執行完整檔案：
+新專案在 SQL Editor 依序貼入並執行以下兩個完整檔案；已裝 v1 的專案只執行第二份。App 啟動、測試或安裝程式都**不會自動執行雲端遷移**。
 
 ```text
 supabase/migrations/202610190001_desktop_relay.sql
+supabase/migrations/202610200001_device_git_approval.sql
 ```
 
-此遷移在單一 transaction 中建立：
+v1 遷移保留原樣，在單一 transaction 中建立：
 
 - `hub_relay_owner`：專用 `NOLOGIN`、非 superuser、沒有 `BYPASSRLS` 的物件擁有者。
 - `hub_private`：網路群組、設備憑證雜湊、邀請雜湊、不可變訊息及摘要表；全部開啟 RLS，沒有用戶端 policy、沒有 anon/authenticated 直接表權限。
 - 14 個 `public.hub_*` RPC：`SECURITY DEFINER`、固定空 `search_path`、完整限定物件名稱，內部驗證設備授權。
 - 私有驗證 helper 及管理用 bootstrap；沒有公開執行權限。
 
+v2 是 additive 升級，新增角色／policy epoch、私有治理稽核、Git 審批與裝置狀態表，及 11 個獨立 `public.hub_v2_*` RPC。v1 payload／response 的 strict 形狀不變；但其驗證 helper、配對與撤銷實作會升級，所有驗證後操作先鎖定 network，再存取成員／資源，避免撤權與消耗授權使用不一致排序。新增表同樣開啟 RLS，helper／私有管理函式沒有公開權限。
+
 管理角色 `postgres` 保留新角色的 membership，方便後續管理。建立 RPC 後會收回新角色對 `public` 的 `CREATE` 權限。腳本不撤銷其他應用的函式權限、不修改其他 schema 的 default privileges，也不建立廣泛的 table grants。
 
 **這是一次性遷移，不是可重複重建腳本。** 同名角色、schema 或函式已存在時會失敗並回滾。請先檢查是否曾成功安裝，不要為了重跑而直接 `DROP ... CASCADE`。
 
-### 3. 管理員建立第一個短效配對碼
+### 3. 指定第一位管理員：新群組與既有群組不同
 
-在同一 SQL Editor 執行 `supabase/bootstrap.sql`，或：
+**新群組：** 先完成兩份遷移，再於同一 SQL Editor 執行 `supabase/bootstrap.sql`，或：
 
 ```sql
 SELECT hub_private.bootstrap('My desktop devices');
 ```
 
-回傳 `networkId`、`code`、`expiresAt`。每次呼叫建立一個**新群組**；配對碼為 64 位小寫十六進位，有效 15 分鐘，限新設備消耗一次。請私下複製，勿貼入 issue、log 或螢幕截圖。它不是 App 的長期設備憑證。
+回傳 `networkId`、`code`、`expiresAt`。每次呼叫建立一個**新群組**；配對碼為 64 位小寫十六進位，有效 15 分鐘，限新設備消耗一次。v2 私有 bootstrap 將該邀請標成 `initial_admin=true`，只有消耗這個邀請的設備成為第一位 admin。普通 `hub_invite` 永遠不設此旗標。請私下複製 code，勿貼入 issue、log 或螢幕截圖；它不是 App 的長期設備憑證。
+
+**既有群組：** v2 不按設備名稱、配對先後或用戶端宣稱自動升權。既有設備與尚未消耗的舊邀請均保持 member；policy epoch 為 0，Git 授權停用，直到資料庫管理者明確選定第一位有效管理員。先私下核對正確的群組與有效設備 UUID，再執行（替換下列預留值）：
+
+```sql
+-- 僅限可信管理端／SQL Editor，不在桌面 App 執行。
+SELECT id, name, role, revoked_at
+FROM hub_private.devices
+WHERE network_id = '<network-uuid>'::uuid;
+
+SELECT hub_private.designate_initial_admin(
+  '<network-uuid>'::uuid,
+  '<active-device-uuid>'::uuid
+);
+```
+
+`hub_private.designate_initial_admin(uuid, uuid)` 只接受尚未初始化（epoch 0、沒有有效 admin）的群組；成功後記錄稽核並設 epoch 1，不能作為之後任意升權的公開通道。之後由有效 admin 使用 App 的角色管理；勿授予 `anon`／`authenticated` 私有函式權限。重新配對的新 membership 不繼承舊設備的 admin 身分。
+
+本機資料庫是另一路升級：目前 SQLite schema 為 **v3**，不會隨雲端 SQL 自動降版。升級前先完全退出並備份整個資料目錄；舊 App 無法開啟新版資料庫，回退須還原相容的升級前備份。
 
 ### 4. 取得公開連線設定
 
@@ -79,17 +102,43 @@ App 不接受 `sb_secret_...`、`service_role` JWT 或其他管理金鑰；它�
 
 設備名稱可以相同，識別依 UUID。**本機 installation UUID 與雲端 membership UUID 分開**：一般使用、重試及重啟保留原身分；明確解除配對後重新配對會產生新的雲端設備 ID/token。舊設備 UUID 永不重新啟用；舊 token 也不復活。更換 endpoint／群組必須先明確解除配對，不會把舊 outbox 自動改送新後端。
 
-暫停同步會保留設備憑證供之後恢復。**解除本機配對會在 SQLite transaction 中清空該連線的加密憑證及待配對秘密，保留非秘密的歷史紀錄。** 這不等於撤銷雲端 membership，也不承諾抹除既有備份或 WAL 的歷史資料；要使舊憑證在雲端失效，請由另一台有效設備撤銷舊設備。
+暫停同步會保留設備憑證供之後恢復。**解除本機配對會在 SQLite transaction 中清空該連線的加密憑證及待配對秘密，保留非秘密的歷史紀錄。** 這不等於撤銷雲端 membership，也不承諾抹除既有備份或 WAL 的歷史資料；要使舊憑證在雲端失效，請由另一台有效 admin 撤銷舊設備（不可撤銷最後一位有效 admin）。
+
+## 可選裝置狀態、背景與撤回
+
+新狀態欄位全部預設關閉，須在 App 中預覽並選擇：
+
+- **App 活動：** 前景／背景、同步狀態、最後成功同步，以及 Hub 自己受控的 scan／sync／git 作業摘要。沒有 CPU／記憶體、其他程式或外部終端機工作監控。
+- **已分享專案的 Git 摘要：** 分支、變更／暫存／衝突計數、觀察時間與是否無法觀測；不包含 diff、原始碼或本機根路徑。
+- **手動任務計數：** `todo / doing / blocked / done`。它們來自使用者記錄的任務，不代表某個程序真的正在執行。
+
+活動與每個專案的 Git／任務欄位分別 opt-in。專案必須已透過 v1 分享且屬於發佈設備，否則伺服器拒絕附加欄位；不可以用別人的 project ID 分享自己的未分享專案。基本專案取消分享時，來源端也清除該專案的可選狀態政策；重新分享須再次明確選擇，不會自動恢復舊 opt-in。接收端觀察到 v1 tombstone 時會持久地清除附加快取，避免稍後重新分享又顯示舊資料。
+
+每台設備的狀態版本單調增加；同版本只接受**完全相同 UTF-8 JSON bytes** 的重試，重試不更新 `receivedAt`。`activity: null, projects: []` 是保留的撤回 tombstone，不會因內容為空而省略。發送前會重新建立當下投影，不盲目重播磁碟中的舊排隊欄位；若投影超過 8192 bytes，會排程撤下舊狀態而不是繼續分享過期內容。SQL 同時在 v1 取消分享時清除可見附加欄位；重試舊版本或只重新分享基本專案，都不會讓舊附加資料復活。
+
+`receivedAt` 由 relay 收到資料時產生；快取載入時間不是「在線」證據。「最後看到裝置」與「最後成功同步」須分開理解。保留的舊狀態會過期，不宣稱能即時判斷另一台電腦是斷線、睡眠還是關機；撤銷後則不再向有效成員提供該設備的狀態。
+
+有可用系統匣時，X 僅隱藏視窗並保留 renderer 草稿與 backend 輪詢；系統匣／再次啟動可恢復原視窗。明確退出或更新仍須處理未儲存草稿，並等待受控工作結束。系統匣建立失敗不允許留下無法恢復的隱藏視窗。備份、替換 executable 或停止所有同步時，請選擇**完全退出**，不要只按 X。
 
 ## 配對重試、撤銷及變更確認
 
 - 雲端只存 32-byte 隨機 token 的 SHA-256，不存 token 明文；邀請 code 也只存 SHA-256。
 - 配對以 row lock 原子消耗 code。回應遺失後，只允許完全相同 `attemptId + deviceId + token hash` 重試；已成功消耗的 code 即使之後過期也可恢復原回應，但設備已撤銷時永遠拒絕。
 - 除配對外，每個 RPC 都重新驗證 token 與有效 membership；sender／network 從 token 推導，拒絕客戶端冒充 sender 或跨群組存取。
-- 變更只允許 `nextAction` 與白名單 partial memory，接受前還要檢查本機 revision、分享政策與最新線上來源授權。離線或授權查詢失敗時不套用。
+- 文字 proposal 的變更只允許 `nextAction` 與白名單 partial memory，接受前還要檢查本機 revision、分享政策與最新線上來源授權。離線或授權查詢失敗時不套用；它不是 Git 審批或 Git 執行入口。
 - `checkProposal` 的有效來源檢查是授權排序點。之後才發生的並發撤銷不能追溯取消已授權的本機 transaction。
 - 本機已完成的 `applied`／`rejected`／`read` 結果可能延後送達；`resolve` 只驗證有效接收端及結果不可變性，不因來源之後被撤銷或訊息過期而丟棄已完成結果。
 - 雲端不自動將過期訊息寫成 terminal decision；過期會阻止新的套用／新訊息提交，但不能先覆蓋尚在重試的有效處理結果。
+
+## Git 審批與授權順序
+
+Git 每次操作都是獨立、不可變的 request，綁定 network、原設備、指定審批者、操作 digest／摘要與 expiry。新 request 期限最長 24 小時，建立／決定／消耗時間由伺服器產生。只有指定且仍有效的 admin 可以批准／拒絕；admin 自審可以，但仍須正式記錄批准，再在原機另行確認。沒有背景自動 execute 或永久「批准全部」。
+
+執行前，原設備在線呼叫 `consumeGit`；伺服器在 network policy lock 與 request row lock 內，重新檢查 origin、批准者目前角色／有效 membership、epoch、decision、digest、expiry。授權消耗是排序點，之後才發生的撤銷不能追溯取消已准入的操作。角色／撤銷變動增加 epoch，舊批准不能直接繼續使用；需要重新預覽／申請。
+
+第一次成功消耗綁定不可變 execution nonce。相同 attempt 的重試只回傳 `replayed: true` 的歷史收據，**不代表可再次啟動 Git**；不同 nonce 衝突。結果回報只允許仍有效的 origin，安全欄位只有固定 status、code、head；同一結果可以重送，但不能改寫，也不因批准已過期而丟棄。未知／部分結果不得自動重跑，詳見 [Git 安全與恢復](GIT-SAFETY.md)。
+
+若 relay 沒有 v2 capability、仍未指定第一位 admin，或線上驗證失敗，Git 寫入停用。本機規劃、記憶、任務與唯讀 Git 不依賴此權限；不能把無法取得政策解讀成「不必審批」。
 
 ## RPC 對應
 
@@ -111,6 +160,24 @@ App 不接受 `sb_secret_...`、`service_role` JWT 或其他管理金鑰；它�
 | `statuses` | `hub_statuses` | `p_ids` | 自己發出的 `MessageReceipt[]` |
 | `checkProposal` | `hub_check_proposal` | `p_id`, `p_hash` | 尚有效且待處理的 `RelayMessage` |
 | `resolve` | `hub_resolve` | `p_id`, `p_decision` | `null` → `void` |
+
+v2 adapter 放在 `RelayClient.governance`，與 v1 訊息收據的 `statuses(token, ids)` 不同；不把新欄位塞進舊 DTO：
+
+| GovernanceRelay 方法 | SQL RPC | 除 `p_token` 外的參數 | 回傳 |
+| --- | --- | --- | --- |
+| `policy` | `hub_v2_policy` | 無 | `GovernancePolicy`：protocol 2、network/device、角色、epoch、有效成員角色 |
+| `setRole` | `hub_v2_set_role` | `p_device_id`, `p_role` | `null` → `void` |
+| `submitGit` | `hub_v2_submit_git` | `p_request`（JSONB） | `GitApproval` |
+| `listGit` | `hub_v2_list_git` | 無 | 自己提出／分派給自己的 `GitApproval[]` |
+| `getGit` | `hub_v2_get_git` | `p_id` | `GitApproval` |
+| `decideGit` | `hub_v2_decide_git` | `p_id`, `p_digest`, `p_decision`, `p_reason` | `GitApproval` |
+| `cancelGit` | `hub_v2_cancel_git` | `p_id`, `p_digest` | `GitApproval`，僅 origin 可取消 |
+| `consumeGit` | `hub_v2_consume_git` | `p_id`, `p_digest`, `p_execution_id` | `{ id, executionId, consumedAt, replayed }` |
+| `reportGit` | `hub_v2_report_git` | `p_id`, `p_execution_id`, `p_result`（JSONB） | `null` → `void` |
+| `publishStatus` | `hub_v2_publish_status` | `p_status`（**TEXT JSON 字串**，不是 JSONB） | `null` → `void` |
+| `statuses` | `hub_v2_statuses` | 無 | 同群組有效成員的 `RemoteDeviceStatus[]` |
+
+完整 signature 同時列於 `tests/helpers/sql-relay.ts`。角色變更與撤銷寫入私有稽核；此介面沒有開放讀寫私有表或呼叫 bootstrap／初始管理員 helper 的方法。
 
 `send` 的 payload 是**不可變 JSON 字串**，雜湊以該字串的原始 UTF-8 bytes 計算，不重新排序／序列化再算。同群組同 event ID 只有同 sender、destination、payload 與 expiry 才可重送；變更內容會衝突。已提交重送會先查重，再判斷新訊息期限，避免「提交成功但回應遺失」造成假失敗。
 
@@ -134,30 +201,38 @@ App 不接受 `sb_secret_...`、`service_role` JWT 或其他管理金鑰；它�
 | ACK、status、snapshot refs | 每次最多 50 項 |
 | pull／manifest | 每頁最多 50 項 |
 | pull／snapshot 回應 | 另有 1 MiB serialized JSON 上限；回傳可容納的 prefix，剩餘未 ACK 訊息／未更新 refs 下輪重取 |
+| Git 新申請期限／內容 | 最長 24 小時；compact JSON UTF-8 最多 256 KiB，與 adapter 的 JSON.stringify byte 計算一致 |
+| Git 清單 | 最多 100 筆、1 MiB；有效 pending／approved 優先於 terminal 歷史；單筆可用 `getGit` 取得 |
+| Git 摘要 | 最多 200 個相對路徑、每個 4096 UTF-16 units；commit 訊息 10,000、拒絕／批准理由 1,000 |
+| 裝置狀態 | 每次 8192 UTF-8 bytes；最多 20 個不重複專案、10 個受控作業摘要；版本為正 safe integer |
+| 狀態回傳 | 最多群組中的 100 個有效設備；保留過期觀測與空 tombstone，不回傳撤銷設備資料 |
 | HTTP adapter 回應 | 串流讀取最多 2 MiB；provider error body 最多 8 KiB |
 | HTTP adapter timeout | 預設 15 秒，涵蓋 headers 與 body；停用／停止時可由 caller abort |
 
 SQL 接受實際有效的 ISO 時間；PostgreSQL 不支援 JSON 字串中的 NUL 字元。payload／snapshot 不是任意 binary blob。供應商錯誤、SQL details、憑證不會直接回傳給 UI 或寫入 adapter log，只映射安全的 `invalid / unauthorized / denied / conflict / expired / unavailable / aborted`。
 
-錯誤機器碼明確區分：`HU401 → unauthorized` 僅表示呼叫者自己的設備 token 無效／已撤銷；`HU403 → denied` 表示來源、目標、邀請或資料 ownership 權限不足（包含對方已撤銷或跨群組），不得因此停用仍有效的本機設備。沒有 relay 機器碼的 gateway HTTP 401／403 可能是公開 key／API 設定問題，映射為可重試的 `unavailable`，不冒充設備撤銷。
+錯誤機器碼明確區分：`HU401 → unauthorized` 僅表示呼叫者自己的設備 token 無效／已撤銷；`HU403 → denied` 表示來源、目標、邀請或資料 ownership 權限不足（包含對方已撤銷或跨群組），不得因此停用仍有效的本機設備。沒有 relay 機器碼的 gateway HTTP 401／403 可能是公開 key／API 設定問題，映射為可重試的 `unavailable`，不冒充設備撤銷。缺少 v2 RPC 的 `PGRST202`／`42883` 也映射為安全的 `unavailable`，而非允許免審批；若自訂 relay 根本沒有 governance adapter，客戶端要求升級。
 
-Supabase 免費方案可能有資料量、流量、API、運算配額，以及閒置專案暫停限制；條款可能變動，請以目前 Dashboard／官方方案資訊為準。本版本不替你付費或自動升級。未 ACK 訊息、已消耗邀請、撤銷紀錄及 tombstone 不會因短期過期而自動刪除；請監看容量。任意清除這些紀錄會破壞去重、配對重試或撤回語意，不提供未經確認的自動 purge。
+Supabase 免費方案可能有資料量、流量、API、運算配額，以及閒置專案暫停限制；條款可能變動，請以目前 Dashboard／官方方案資訊為準。本版本不替你付費或自動升級。未 ACK 訊息、已消耗邀請、撤銷／治理稽核、Git 審批／執行紀錄及 tombstone 不會因短期過期而自動刪除；請監看容量。任意清除這些紀錄會破壞去重、配對重試或撤回語意，不提供未經確認的自動 purge。
 
 ## 故障處理
 
 - **配對碼過期**：尚未消耗的 code 請重新邀請；第一台尚未配對時可手動重新 bootstrap（會建立新群組）。已成功提交但回應遺失時保留 pending attempt 並重試，勿直接手動清除加密資料。
-- **憑證無效／已撤銷**：停止重試舊身分。由仍有效設備確認是否誤撤銷；明確解除配對後，使用新邀請建立新 membership。
+- **憑證無效／已撤銷**：停止重試舊身分。由仍有效 admin 確認是否誤撤銷；明確解除配對後，使用新邀請建立 member 身分的新 membership，舊 admin 角色不會恢復。
 - **safeStorage 無法解密**：不會退回明文；不要複製加密 credential blob 到另一個 Windows 帳號期待可用。檢查目前 OS 帳號與桌面安全儲存後，再決定是否明確解除配對。
 - **API 暫時無法使用**：檢查連線、Supabase 暫停／配額、Project URL、公開 key 與遷移是否成功；不要貼出完整憑證或 provider error body。網路失敗不影響原有本機編輯。
 - **出現資料衝突**：重新預覽本機 revision；不要手動改 message ID 後自動套用同一要求。
-- **只看到快取摘要**：確認來源 App 已開啟、連線已啟用，且仍選取分享；快取不是遠端電腦正在運作的證明。
+- **只看到快取摘要**：確認來源 runtime 仍運作（可以縮至系統匣）、連線已啟用，且仍選取分享；快取不是遠端電腦正在運作的證明。
+- **Git 要求升級／沒有管理員**：確認兩份遷移均成功；既有群組需由私有管理端執行 `designate_initial_admin`。不要改本機快取角色、使用 service key 或放寬 SQL grants。
+- **批准後仍不能執行**：可能已過期、被取消、角色 epoch 已變，或儲存庫與預覽不符；重新檢查並建立新申請，不重寫已批准內容。
+- **unknown／partial**：先檢查本機 journal、HEAD、index、工作檔案與必要的遠端狀態，再依 Git 畫面提供的恢復流程明確確認。不要刪除 journal、重送 nonce 或重跑 Git 來猜測結果。
 
 ## 已測與尚待實機驗證
 
 本機驗證指令：
 
 ```bash
-npm exec -- vitest run tests/supabase-relay.test.ts tests/relay-sql.test.ts
+npm exec -- vitest run tests/supabase-relay.test.ts tests/relay-sql.test.ts tests/governance-relay.test.ts tests/governance-sql.test.ts
 ```
 
 ```bash
@@ -166,6 +241,10 @@ npm run typecheck
 
 `@electric-sql/pglite` 僅是 dev dependency，不是 App 的雲端 SDK。SQL 測試執行交付的 migration 與 RPC，使用真的 PostgreSQL `SET LOCAL ROLE anon/authenticated`、grants、RLS 與 `SECURITY DEFINER`，不是用 SQL 字串比對假裝授權測試。涵蓋錯誤／撤銷憑證、helper/table ACL、跨群組、sender 冒充、配對重試／重用／過期、訊息不可變／收據 ownership、延後結果、tombstone／keyset、UTF-8 bytes 與批次上限。HTTP 測試覆蓋設定、公開 key、轉址拒絕、嚴格回傳 schemas、錯誤遮蔽、串流上限與 timeout/abort。
 
-測試用 `tests/helpers/sql-relay.ts` 的 `createSqlRelayFixture()` 可讓多個隔離本機 store 共用真 SQL relay，不會送出網路請求；使用完必須 `close()`。PGlite 採單一實例／連線，**不能代替真正多連線競爭或 Supabase gateway 驗證**。
+本次針對上述四份測試的執行共 **58 tests 通過**；另有針對性的本機審批／狀態整合測試通過。新 SQL 測試包含既有群組不自動升權、私有初始化、member 不能撤銷／升權／審批、last-admin 保護、指定 reviewer／自審、epoch／expiry、一次性消耗與重播、immutable 結果、狀態 bytes／版本／ownership、v1 取消分享及重新分享不復活附加資料。
+
+測試用 `tests/helpers/sql-relay.ts` 的 `createSqlRelayFixture()` **預設執行兩份實際 migration**，可讓多個隔離本機 store 共用真 SQL relay，不會送出網路請求；使用完必須 `close()`。`{ governance: false }` 僅供封存 v1 相容測試；`tests/relay-sql.test.ts` 記錄 v1 的舊行為，不能拿它的「同等設備權限」斷言描述升級後政策。`tests/governance-sql.test.ts` 另證明 v2 下舊 RPC 的撤銷權限已加固。PGlite 採單一實例／連線，**不能代替真正多連線競爭或 Supabase gateway 驗證**。
+
+以上通過紀錄不是整個功能已完成發行驗證的宣告。完整新套件、瀏覽器互動、重新打包後的 Windows 系統匣／退出／更新及 Git 原生執行路徑，仍須在同一候選建置逐項執行並記錄；既有驗證文件只能證明其當時所測版本。
 
 **尚未執行**：使用者真實 Supabase 的 SQL Editor 角色權限、PostgREST schema cache／回應、publishable/legacy key gateway、雲端多連線競爭、實際配額／暫停／TLS／跨電腦網路，以及兩台真 Windows 桌面 safeStorage 與重啟流程。沒有使用者提供專案並明確進行 live 驗證前，不宣稱完成真實跨電腦雲端連線。

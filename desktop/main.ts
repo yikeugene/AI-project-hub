@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, clipboard, dialog, ipcMain, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage, powerMonitor, safeStorage, screen, session, shell, type IpcMainInvokeEvent } from 'electron';
 import { NsisUpdater } from 'electron-updater';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -13,6 +13,7 @@ import { releaseUrl, type ReleaseSource, type UpdateState, type UpdateUnavailabl
 import { clipboardInput, isAppUrl, isMainDocumentUrl, saveTextInput } from './security.js';
 import { createCredentialCodec } from './credentials.js';
 import { UpdateController } from './updater.js';
+import { DesktopLifecycle, type ExitIntent } from './lifecycle.js';
 
 app.setName('AI Project Hub');
 app.setAppUserModelId('local.aiprojecthub.desktop');
@@ -26,19 +27,29 @@ mkdirSync(profile, { recursive: true, mode: 0o700 });
 app.setPath('userData', profile);
 
 let window: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let runtime: HubRuntime | null = null;
+let startingRuntime: Promise<HubRuntime> | undefined;
+let creatingWindow: Promise<void> | undefined;
+let desktopSecret: string;
 let disposed = false;
 let shutdown: Promise<void> | undefined;
 let locale: Locale = DEFAULT_LOCALE;
 let updater: UpdateController;
+const lifecycle = new DesktopLifecycle();
 const t = (key: keyof typeof desktopMessages.en) => translate(desktopMessages, locale, key);
 
 async function finishShutdown() {
   if (shutdown) return shutdown;
+  if (!lifecycle.beginShutdown()) return;
   shutdown = (async () => {
-    await runtime?.stop();
+    // Quit may arrive while startup is acquiring the listener/database.
+    const activeRuntime = runtime ?? await startingRuntime?.catch(() => null);
+    await activeRuntime?.stop();
     disposed = true;
-    if (updater?.installationPending && updater.installAfterShutdown()) return;
+    tray?.destroy(); tray = null;
+    if (lifecycle.closeIntent === 'update' && updater?.installationPending && updater.installAfterShutdown()) return;
+    updater?.cancelInstall();
     app.quit();
   })().catch(error => {
     updater?.cancelInstall();
@@ -46,6 +57,38 @@ async function finishShutdown() {
     app.exit(1);
   });
   return shutdown;
+}
+
+function reportActivity() {
+  runtime?.setActivityMode(window && !window.isDestroyed() && window.isVisible() && !window.isMinimized() ? 'foreground' : 'background');
+}
+
+function revealWindow(owner: BrowserWindow) {
+  if (owner.isMinimized()) owner.restore();
+  owner.show(); owner.focus();
+}
+
+function showWindow() {
+  if (lifecycle.exiting || disposed) return;
+  if (window && !window.isDestroyed()) revealWindow(window);
+  else if (runtime) void createMainWindow().catch(startupFailed);
+}
+
+function requestExit(intent: ExitIntent): boolean {
+  if (!lifecycle.requestExit(intent)) return false;
+  if (intent !== 'update') updater?.cancelInstall();
+  // A hidden window must be visible if its unsaved-content guard cancels exit.
+  if (window && !window.isDestroyed()) { revealWindow(window); window.close(); }
+  else void finishShutdown();
+  return true;
+}
+
+async function startupFailed(error: unknown) {
+  if (!lifecycle.requestExit('startup-failed')) { await shutdown; return; }
+  updater?.cancelInstall();
+  dialog.showErrorBox(t('startupFailed'), error instanceof Error ? error.message : String(error));
+  if (window && !window.isDestroyed()) window.destroy();
+  await finishShutdown();
 }
 
 function trustedSender(event: IpcMainInvokeEvent) {
@@ -94,11 +137,46 @@ function installNativeBridge() {
 
 function rebuildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: t('file'), submenu: [{ label: t('quit'), role: 'quit' }] },
+    { label: t('file'), submenu: [{ id: 'quit', label: t('quit'), accelerator: 'CmdOrCtrl+Q', click: () => { requestExit('quit'); } }] },
     { label: t('edit'), submenu: [{ role: 'undo', label: t('undo') }, { role: 'redo', label: t('redo') }, { type: 'separator' }, { role: 'cut', label: t('cut') }, { role: 'copy', label: t('copy') }, { role: 'paste', label: t('paste') }, { role: 'selectAll', label: t('selectAll') }] },
     { label: t('view'), submenu: [{ role: 'resetZoom', label: t('actualSize') }, { role: 'zoomIn', label: t('zoomIn') }, { role: 'zoomOut', label: t('zoomOut') }, { role: 'togglefullscreen', label: t('fullscreen') }] },
     { label: t('help'), submenu: [{ label: t('about'), click: () => { if (window) void dialog.showMessageBox(window, { type: 'info', title: 'AI Project Hub', message: `AI Project Hub ${APP_VERSION}`, detail: t('aboutDetail') }); } }] },
   ]));
+  rebuildTrayMenu();
+}
+
+function rebuildTrayMenu() {
+  if (!tray || tray.isDestroyed()) { lifecycle.setTrayAvailable(false); return; }
+  try {
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { id: 'open', label: t('open'), click: showWindow },
+      { type: 'separator' },
+      { id: 'quit', label: t('quit'), click: () => { requestExit('quit'); } },
+    ]));
+    lifecycle.setTrayAvailable(true);
+  } catch (error) {
+    lifecycle.setTrayAvailable(false);
+    tray.destroy(); tray = null;
+    console.error('Could not configure the system tray:', error);
+    if (window && !window.isDestroyed()) revealWindow(window);
+  }
+}
+
+function createTray() {
+  try {
+    const image = nativeImage.createFromPath(join(app.getAppPath(), 'icon.png'));
+    if (image.isEmpty()) throw new Error('The application tray icon is unavailable.');
+    tray = new Tray(image);
+    tray.setToolTip('AI Project Hub');
+    tray.on('click', showWindow);
+    tray.on('double-click', showWindow);
+    rebuildTrayMenu();
+  } catch (error) {
+    lifecycle.setTrayAvailable(false);
+    tray?.destroy(); tray = null;
+    // Close falls back to the guarded real-quit path instead of orphaning a hidden app.
+    console.error('Could not create the system tray:', error);
+  }
 }
 
 function loadReleaseSource(): ReleaseSource | null {
@@ -128,78 +206,126 @@ function configureUpdater() {
       if (window && !window.isDestroyed()) window.webContents.send(DESKTOP_CHANNELS.updateState, state);
       else if (disposed && state.status === 'error') { dialog.showErrorBox(t('updateFailed'), state.error || t('error')); app.quit(); }
     },
-    requestClose: () => { setImmediate(() => { if (window && !window.isDestroyed()) window.close(); else updater.cancelInstall(); }); },
+    requestClose: () => {
+      setImmediate(() => {
+        if (updater.installationPending && !requestExit('update')) updater.cancelInstall();
+      });
+    },
   });
+}
+
+function createMainWindow(): Promise<void> {
+  if (creatingWindow) return creatingWindow;
+  if (!runtime || lifecycle.exiting || window && !window.isDestroyed()) return Promise.resolve();
+  const origin = runtime.origin;
+  creatingWindow = (async () => {
+    // Recovery uses the same backend but a fresh, equally restricted renderer session.
+    const isolatedSession = session.fromPartition(`hub-${randomUUID()}`);
+    await isolatedSession.setProxy({ mode: 'direct' });
+    if (lifecycle.exiting) return;
+    isolatedSession.setPermissionCheckHandler(() => false);
+    isolatedSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+    const workArea = screen.getPrimaryDisplay().workAreaSize;
+    const owner = new BrowserWindow({
+      width: Math.min(1380, workArea.width), height: Math.min(920, workArea.height), minWidth: 760, minHeight: 580,
+      title: 'AI Project Hub', backgroundColor: '#F5F7FB', show: false, icon: join(app.getAppPath(), 'icon.png'),
+      webPreferences: {
+        preload: join(__dirname, 'preload.cjs'), session: isolatedSession,
+        nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
+        webviewTag: false, spellcheck: false, devTools: !app.isPackaged,
+      },
+    });
+    window = owner;
+    const contents = owner.webContents;
+    isolatedSession.webRequest.onBeforeRequest((details, callback) => {
+      const allowed = window === owner && !owner.isDestroyed() && details.webContentsId === contents.id && (isAppUrl(details.url, origin) || details.url.startsWith(`blob:${origin}/`) || details.url.startsWith('data:'));
+      callback({ cancel: !allowed });
+    });
+    isolatedSession.webRequest.onBeforeSendHeaders({ urls: [`${origin}/*`] }, (details, callback) => {
+      if (window !== owner || owner.isDestroyed() || details.webContentsId !== contents.id || !isAppUrl(details.url, origin)) { callback({ cancel: true }); return; }
+      // The renderer never receives the key; it is not stored in a URL or cookie.
+      callback({ requestHeaders: { ...details.requestHeaders, [DESKTOP_KEY_HEADER]: desktopSecret } });
+    });
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    contents.on('will-navigate', (event, url) => { if (!isMainDocumentUrl(url, origin)) event.preventDefault(); });
+    contents.on('will-redirect', (event, url) => { if (!isMainDocumentUrl(url, origin)) event.preventDefault(); });
+    contents.on('will-attach-webview', event => event.preventDefault());
+    contents.on('render-process-gone', () => {
+      // A crashed renderer cannot answer beforeunload; the existing intent decides recover vs exit.
+      if (window === owner) owner.destroy();
+    });
+    contents.on('will-prevent-unload', event => {
+      if (window !== owner || owner.isDestroyed()) return;
+      const choice = dialog.showMessageBoxSync(owner, {
+        type: 'warning', title: t('unsaved'), message: t('closeQuestion'),
+        detail: t('closeDetail'), buttons: [t('continueEditing'), t('discardClose')], defaultId: 0, cancelId: 0, noLink: true,
+      });
+      // Electron's event is inverted: preventing will-prevent-unload allows closing.
+      if (choice === 1) event.preventDefault();
+      else {
+        lifecycle.cancelClose();
+        updater.cancelInstall();
+        revealWindow(owner);
+      }
+    });
+    owner.on('close', event => {
+      lifecycle.setTrayAvailable(!!tray && !tray.isDestroyed());
+      if (lifecycle.windowClose() === 'hide') { event.preventDefault(); owner.hide(); }
+    });
+    owner.on('show', reportActivity);
+    owner.on('hide', reportActivity);
+    owner.on('minimize', reportActivity);
+    owner.on('restore', reportActivity);
+    owner.once('ready-to-show', () => { if (!lifecycle.exiting && window === owner) owner.show(); });
+    owner.on('closed', () => {
+      if (window === owner) window = null;
+      reportActivity();
+      // No IPC handlers are installed here: the single bridge always validates the current window.
+      isolatedSession.webRequest.onBeforeRequest(null);
+      isolatedSession.webRequest.onBeforeSendHeaders(null);
+    });
+    reportActivity();
+    try { await owner.loadURL(origin + '/'); }
+    catch (error) { if (!lifecycle.exiting && !owner.isDestroyed()) throw error; }
+  })().finally(() => { creatingWindow = undefined; });
+  return creatingWindow;
 }
 
 async function start() {
   await app.whenReady();
-  const secret = randomBytes(32).toString('hex');
-  runtime = await createHubRuntime({ dataDir, assetDirectory: join(app.getAppPath(), 'dist'), port: 0, mode: 'desktop', desktopSecret: secret,
+  if (lifecycle.exiting) return;
+  desktopSecret = randomBytes(32).toString('hex');
+  startingRuntime = createHubRuntime({ dataDir, assetDirectory: join(app.getAppPath(), 'dist'), port: 0, mode: 'desktop', desktopSecret,
     deviceOptions: { codec: createCredentialCodec(safeStorage, process.platform, () => locale) },
     appOptions: { onSettingsChanged: settings => { locale = settings.locale; rebuildMenu(); } } });
+  runtime = await startingRuntime;
+  if (lifecycle.exiting) { await finishShutdown(); return; }
   locale = runtime.store.getSettings().locale;
-  const origin = runtime.origin;
-  const isolatedSession = session.fromPartition(`hub-${randomUUID()}`);
-  await isolatedSession.setProxy({ mode: 'direct' });
-  isolatedSession.setPermissionCheckHandler(() => false);
-  isolatedSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  const workArea = screen.getPrimaryDisplay().workAreaSize;
-  window = new BrowserWindow({
-    width: Math.min(1380, workArea.width), height: Math.min(920, workArea.height), minWidth: 760, minHeight: 580,
-    title: 'AI Project Hub', backgroundColor: '#F5F7FB', show: false, icon: join(app.getAppPath(), 'icon.png'),
-    webPreferences: {
-      preload: join(__dirname, 'preload.cjs'), session: isolatedSession,
-      nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
-      webviewTag: false, spellcheck: false, devTools: !app.isPackaged,
-    },
-  });
-  const contents = window.webContents;
-  isolatedSession.webRequest.onBeforeRequest((details, callback) => {
-    const allowed = details.webContentsId === contents.id && (isAppUrl(details.url, origin) || details.url.startsWith(`blob:${origin}/`) || details.url.startsWith('data:'));
-    callback({ cancel: !allowed });
-  });
-  isolatedSession.webRequest.onBeforeSendHeaders({ urls: [`${origin}/*`] }, (details, callback) => {
-    if (details.webContentsId !== contents.id || !isAppUrl(details.url, origin)) { callback({ cancel: true }); return; }
-    // The renderer never receives the key; it is not stored in a URL or cookie.
-    callback({ requestHeaders: { ...details.requestHeaders, [DESKTOP_KEY_HEADER]: secret } });
-  });
-  contents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  contents.on('will-navigate', (event, url) => { if (!isMainDocumentUrl(url, origin)) event.preventDefault(); });
-  contents.on('will-redirect', (event, url) => { if (!isMainDocumentUrl(url, origin)) event.preventDefault(); });
-  contents.on('will-attach-webview', event => event.preventDefault());
-  contents.on('will-prevent-unload', event => {
-    if (!window) return;
-    const choice = dialog.showMessageBoxSync(window, {
-      type: 'warning', title: t('unsaved'), message: t('closeQuestion'),
-      detail: t('closeDetail'), buttons: [t('continueEditing'), t('discardClose')], defaultId: 0, cancelId: 0, noLink: true,
-    });
-    // Electron's event is inverted: preventing will-prevent-unload allows closing.
-    if (choice === 1) event.preventDefault();
-    else updater.cancelInstall();
-  });
-  window.once('ready-to-show', () => window?.show());
-  window.on('closed', () => { window = null; });
   configureUpdater();
+  // App-scoped handlers must not be registered again when recovering a lost window.
   installNativeBridge();
   rebuildMenu();
-  await window.loadURL(origin + '/');
+  createTray();
+  powerMonitor.on('resume', () => { if (!lifecycle.exiting) runtime?.resumed(); });
+  await createMainWindow();
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); } });
+  app.on('second-instance', showWindow);
+  app.on('activate', showWindow);
   app.on('before-quit', event => {
     if (disposed) return;
     event.preventDefault();
-    // Ask the window to close first: a canceled beforeunload must leave the backend alive.
-    if (window && !window.isDestroyed()) window.close();
-    else void finishShutdown();
+    // This is an explicit exit, unlike X. A canceled beforeunload leaves the backend alive.
+    requestExit('quit');
   });
-  app.on('window-all-closed', () => { void finishShutdown(); });
-  void start().catch(async error => {
-    dialog.showErrorBox(t('startupFailed'), error instanceof Error ? error.message : String(error));
-    if (window && !window.isDestroyed()) window.destroy();
-    await finishShutdown();
+  app.on('window-all-closed', () => {
+    if (lifecycle.allWindowsClosed() === 'shutdown') void finishShutdown();
+    else {
+      // Destruction/crashes are not permission to stop the runtime. Recreate a secured window.
+      void (creatingWindow ?? Promise.resolve()).then(() => createMainWindow()).catch(startupFailed);
+    }
   });
+  void start().catch(startupFailed);
 }

@@ -12,6 +12,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--import", "tsx", "server/index.ts", "--production", "--port", "4318", "--data-dir", ".local/verification"],
       "port": 4318
+    },
+    {
+      "name": "Git approval isolated preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "scripts/git-ui-preview.ts"],
+      "port": 4319
     }
   ]
 }

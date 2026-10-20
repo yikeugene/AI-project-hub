@@ -15,10 +15,16 @@ import { coreTranslator } from '../shared/locales/core.js';
 import { RelayError } from './relay.js';
 import { syncError } from './sync.js';
 import { deviceRouter, type DeviceService } from './devices.js';
+import { gitRouter } from './git-router.js';
+import type { GitApprovalService } from './git-approvals.js';
+import type { GovernanceService } from './governance.js';
 
 export interface AppOptions {
   store: Store; dataDir: string;
   deviceService?: DeviceService;
+  gitService?: GitApprovalService;
+  governanceService?: GovernanceService;
+  onActivity?: (kind: 'scan', state: 'running' | 'succeeded' | 'failed') => void;
   readGit?: (path: string) => Promise<GitSnapshot>;
   capabilities?: () => Promise<Capabilities>;
   launch?: (path: string, action: LaunchAction) => Promise<void>;
@@ -123,14 +129,15 @@ export function createApp(options: AppOptions) {
   app.post('/api/scan', async (req, res) => {
     const input = z.object({ path: z.string().min(1).max(4096), depth: z.number().int().min(0).max(8).optional() }).strict().parse(req.body);
     if (scanning) throw appError(409, 'scan.busy');
-    scanning = true;
+    scanning = true; options.onActivity?.('scan', 'running');
     try {
       const path = await canonicalDirectory(input.path);
       const result = await scanProjects(path, { depth: input.depth }, locale());
       const roots = store.getSettings().scanRoots;
       store.updateSettings({ scanRoots: [...new Set([path, ...roots])].slice(0, 30) });
-      res.json(result);
-    } finally { scanning = false; }
+      options.onActivity?.('scan', 'succeeded'); res.json(result);
+    } catch (error) { options.onActivity?.('scan', 'failed'); throw error; }
+    finally { scanning = false; }
   });
   app.post('/api/scan/import', async (req, res) => {
     const { paths } = z.object({ paths: z.array(z.string().min(1).max(4096)).min(1).max(100) }).strict().parse(req.body);
@@ -204,6 +211,7 @@ export function createApp(options: AppOptions) {
     res.json(settings);
   });
   if (options.deviceService) app.use('/api', deviceRouter(options.deviceService));
+  if (options.gitService && options.governanceService) app.use('/api', gitRouter(options.gitService, options.governanceService));
   app.use('/api', (_req, res) => { res.status(404).json(errorResponse('request.notFound', locale())); });
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     if (res.headersSent) return;

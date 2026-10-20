@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { _electron } from 'playwright-core';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const executable = join(root, 'release', 'win-unpacked', 'AI Project Hub.exe');
-if (!existsSync(executable)) throw new Error('Run npm run pack:desktop first.');
+const executableFlag = process.argv.indexOf('--executable');
+const executableOverride = executableFlag < 0 ? undefined : process.argv[executableFlag + 1];
+if (executableFlag >= 0 && (!executableOverride || !isAbsolute(executableOverride))) throw new Error('--executable requires an absolute executable path.');
+const executable = executableOverride ?? join(root, 'release', 'win-unpacked', 'AI Project Hub.exe');
+if (!existsSync(executable)) throw new Error('Executable not found. Run npm run pack:desktop first or pass --executable with an existing absolute path.');
 await mkdir(join(root, '.local'), { recursive: true });
 const work = await mkdtemp(join(root, '.local', 'desktop-smoke-'));
 const dataDir = join(work, 'data');
@@ -32,7 +35,33 @@ async function launch(locale = 'en') {
   page.on('pageerror', error => errors.push(error.message));
   await page.getByRole('heading', { name: locale === 'en' ? 'Development workspace' : '開發工作台', exact: true }).waitFor();
   await page.waitForFunction(expected => document.documentElement.lang === expected && !document.querySelector('.language-toggle button')?.disabled, locale);
+  // Test-only observation of genuine Tray instances/menus. No production IPC or debug switch.
+  await desktop.evaluate(({ Tray }) => {
+    const setContextMenu = Tray.prototype.setContextMenu;
+    Tray.prototype.setContextMenu = function (menu) {
+      globalThis.__smokeTray = this; globalThis.__smokeTrayMenu = menu;
+      return setContextMenu.call(this, menu);
+    };
+  });
   return page;
+}
+async function quitDesktop() {
+  const closing = desktop.waitForEvent('close');
+  void closing.catch(() => {});
+  await desktop.evaluate(({ Menu }) => {
+    const quit = Menu.getApplicationMenu()?.getMenuItemById('quit');
+    if (!quit) throw new Error('Native File / Quit menu item is missing.');
+    quit.click();
+  });
+  await closing;
+  desktop = undefined;
+}
+async function waitForNative(predicate) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await desktop.evaluate(predicate)) return;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  throw new Error('Native lifecycle did not reach the expected state.');
 }
 async function switchLanguage(page, locale) {
   await page.locator('.language-toggle').getByRole('button', { name: locale === 'en' ? 'English' : '繁體中文', exact: true }).click();
@@ -43,6 +72,9 @@ async function switchLanguage(page, locale) {
 async function assertNativeLanguage(locale) {
   const labels = await desktop.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map(item => item.label));
   assert.deepEqual(labels, locale === 'en' ? ['File', 'Edit', 'View', 'Help'] : ['檔案', '編輯', '檢視', '說明']);
+  const trayLabels = await desktop.evaluate(() => globalThis.__smokeTrayMenu?.items.filter(item => item.type !== 'separator').map(item => item.label));
+  // The observer is installed after launch; subsequent language saves rebuild the real tray menu.
+  if (trayLabels) assert.deepEqual(trayLabels, locale === 'en' ? ['Open AI Project Hub', 'Quit AI Project Hub'] : ['開啟 AI Project Hub', '完全退出 AI Project Hub']);
 }
 async function captureLanguageLayout(page, locale) {
   await page.screenshot({ path: join(work, `desktop-initial-${locale}.png`) });
@@ -269,20 +301,52 @@ try {
 
   await page.locator('.detail-tabs').getByRole('button', { name: '專案記憶', exact: true }).click();
   await page.getByRole('textbox', { name: '目前開發狀態', exact: true }).fill('尚未儲存的桌面草稿');
-  await desktop.evaluate(({ dialog, BrowserWindow }) => { dialog.showMessageBoxSync = (_owner, options) => { globalThis.__smokeCloseOptions = options; return 0; }; BrowserWindow.getAllWindows()[0].close(); });
-  await page.waitForTimeout(300);
+  const originalWindow = await desktop.evaluate(({ BrowserWindow }) => ({ id: BrowserWindow.getAllWindows()[0].id, renderer: BrowserWindow.getAllWindows()[0].webContents.id }));
+  await desktop.evaluate(({ dialog, BrowserWindow }) => {
+    dialog.showMessageBoxSync = (_owner, options) => { globalThis.__smokeCloseOptions = options; return 0; };
+    BrowserWindow.getAllWindows()[0].close();
+  });
+  await waitForNative(({ BrowserWindow }) => BrowserWindow.getAllWindows().length === 1 && !BrowserWindow.getAllWindows()[0].isVisible());
   assert.equal(page.isClosed(), false);
+  assert.equal(await desktop.evaluate(() => globalThis.__smokeCloseOptions), undefined);
+  assert.equal(await page.getByRole('textbox', { name: '目前開發狀態', exact: true }).inputValue(), '尚未儲存的桌面草稿');
+  assert.equal(await page.evaluate(async () => (await fetch('/api/workspace')).status), 200);
+  assert.equal((await fetch(origin + '/api/workspace')).status, 401);
+  checked('X hides the original dirty renderer without a discard prompt; backend remains available only to the trusted session');
+  await desktop.evaluate(() => {
+    const open = globalThis.__smokeTrayMenu?.getMenuItemById('open');
+    if (!open || globalThis.__smokeTray.isDestroyed()) throw new Error('Working tray Open callback is missing.');
+    open.click();
+  });
+  await waitForNative(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible());
+  assert.deepEqual(await desktop.evaluate(({ BrowserWindow }) => ({ id: BrowserWindow.getAllWindows()[0].id, renderer: BrowserWindow.getAllWindows()[0].webContents.id })), originalWindow);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  const secondInstance = spawnSync(executable, ['--data-dir', dataDir], { env, stdio: 'ignore', timeout: 30000 });
+  assert.equal(secondInstance.status, 0, secondInstance.error?.message);
+  await waitForNative(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible());
+  assert.deepEqual(await desktop.evaluate(({ BrowserWindow }) => ({ id: BrowserWindow.getAllWindows()[0].id, renderer: BrowserWindow.getAllWindows()[0].webContents.id })), originalWindow);
+  checked('Localized tray Open and a second process restore the original window/renderer, preserving its draft');
+  await desktop.evaluate(({ BrowserWindow, Menu }) => {
+    BrowserWindow.getAllWindows()[0].close();
+    Menu.getApplicationMenu().getMenuItemById('quit').click();
+  });
+  await waitForNative(() => !!globalThis.__smokeCloseOptions);
   const closeOptions = await desktop.evaluate(() => globalThis.__smokeCloseOptions);
   assert.equal(closeOptions.title, '還有尚未儲存的內容');
   assert.deepEqual(closeOptions.buttons, ['繼續編輯', '捨棄變更並關閉']);
   assert.equal(await page.getByRole('textbox', { name: '目前開發狀態', exact: true }).inputValue(), '尚未儲存的桌面草稿');
   assert.equal(await page.evaluate(async () => (await fetch('/api/workspace')).status), 200);
+  await waitForNative(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible());
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  await waitForNative(({ BrowserWindow }) => !BrowserWindow.getAllWindows()[0].isVisible());
+  await desktop.evaluate(() => globalThis.__smokeTray.emit('click'));
+  await waitForNative(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible());
   await page.getByRole('textbox', { name: '目前開發狀態', exact: true }).fill(state.memory.status);
-  checked('Canceling native close preserves the draft and keeps the backend running');
+  checked('Canceled File Quit restores access, preserves drafts/backend, resets X to hide, and tray click restores it again');
   await page.getByRole('button', { name: '關閉Desktop Round Trip', exact: true }).click();
   await page.screenshot({ path: join(work, 'desktop-dashboard.png') });
-  await desktop.close(); desktop = undefined;
-  await assert.rejects(fetch(origin + '/api/workspace')); checked('Closing the desktop app releases its internal listener');
+  await quitDesktop();
+  await assert.rejects(fetch(origin + '/api/workspace')); checked('Explicit native File Quit drains the desktop runtime and releases its listener');
 
   // Append real cache records only while this disposable app is CLOSED; no route interception or production bypass.
   const seeded = spawnSync(process.execPath, ['--import', 'tsx', join(root, 'scripts', 'device-fixtures.ts'), '--data-dir', dataDir, '--app-closed'], { cwd: root, encoding: 'utf8', timeout: 30000 });
@@ -385,8 +449,25 @@ try {
   const withdrawn = await page.evaluate(async id => (await fetch(`/api/devices/sharing/${id}`)).json(), oversized.projectId);
   assert.equal(withdrawn.policy.enabled, false); assert.equal(withdrawn.error, null);
   checked('Oversized later edits retain working policy controls and can be withdrawn through the real desktop UI');
+  origin = new URL(page.url()).origin;
+  const recoveredWindow = desktop.waitForEvent('window');
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].destroy());
+  page = await recoveredWindow;
+  page.setDefaultTimeout(20000); page.on('pageerror', error => errors.push(error.message));
+  await page.getByRole('heading', { name: '開發工作台', exact: true }).waitFor();
+  assert.equal(new URL(page.url()).origin, origin);
+  assert.equal((await fetch(origin + '/api/workspace')).status, 401);
+  assert.equal(await page.evaluate(async () => (await fetch('/api/workspace')).status), 200);
+  assert.equal((await page.evaluate(() => window.hubDesktop.getUpdateState())).status, 'unavailable');
+  const recovered = await desktop.evaluate(({ BrowserWindow }) => {
+    const prefs = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();
+    return { windows: BrowserWindow.getAllWindows().length, sandbox: prefs.sandbox, contextIsolation: prefs.contextIsolation, nodeIntegration: prefs.nodeIntegration, webSecurity: prefs.webSecurity };
+  });
+  assert.deepEqual(recovered, { windows: 1, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true });
+  checked('Unexpected window destruction recovers one sandboxed window on the existing runtime with a working trusted bridge');
   assert.deepEqual(errors, []); checked('No renderer page errors during native flows');
-  await desktop.close(); desktop = undefined;
+  await quitDesktop();
+  await assert.rejects(fetch(origin + '/api/workspace'));
   report.result = report.skippedChecks.length ? 'passed-with-environment-limitations' : 'passed'; await writeFile(join(work, 'report.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } catch (error) {
@@ -397,4 +478,4 @@ try {
   }
   console.error('Native verification failed. Artifacts:', work);
   throw error;
-} finally { if (desktop) await desktop.close().catch(() => {}); }
+} finally { if (desktop) await quitDesktop().catch(async () => { await desktop?.close().catch(() => {}); }); }

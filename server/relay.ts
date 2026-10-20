@@ -1,4 +1,5 @@
 import type { DeviceRecord, ManifestEntry, MessageDecision, MessageReceipt, OutboundMessage, PairAttempt, PairResult, RelayConfiguration, RelayMessage, RemoteSnapshot, SnapshotPublication } from '../shared/devices.js';
+import type { GovernanceRelay } from '../shared/governance.js';
 
 export interface SecureCodec {
   available(): boolean;
@@ -6,6 +7,8 @@ export interface SecureCodec {
   decrypt(value: Uint8Array): string;
 }
 export interface RelayClient {
+  /** Absent on legacy/custom relays. Capability failure must never bypass Git approval. */
+  governance?: GovernanceRelay;
   pair(input: PairAttempt, signal?: AbortSignal): Promise<PairResult>;
   listDevices(token: string, signal?: AbortSignal): Promise<DeviceRecord[]>;
   renameDevice(token: string, name: string, signal?: AbortSignal): Promise<void>;

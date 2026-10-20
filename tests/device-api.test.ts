@@ -44,6 +44,31 @@ describe('guarded device API and two desktop runtimes', () => {
     expect(a.runtime.devices.state().localDevice.name).toBe('本機新名稱');
     expect(a.factory).not.toHaveBeenCalled();
   });
+  it('guards Git and governance routes, requires explicit confirmation, and rejects arbitrary command fields', async () => {
+    const a = await start(), id = randomUUID(), digest = '0'.repeat(64);
+    expect((await fetch(a.runtime.origin + '/api/governance')).status).toBe(401);
+    expect((await a.request('/api/governance')).status).toBe(200);
+    expect((await fetch(a.runtime.origin + '/api/git/requests', { method: 'POST', headers: { ...a.headers, 'Content-Type': 'application/json' }, body: '{}' })).status).toBe(403);
+    expect((await a.request(`/api/projects/${id}/git/preview`, 'POST', { operation: { kind: 'reset', hard: true } })).status).toBe(400);
+    expect((await a.request(`/api/projects/${id}/git/preview`, 'POST', { operation: { kind: 'stage', paths: ['file'], command: 'anything' } })).status).toBe(400);
+    expect((await a.request(`/api/git/requests/${id}/execute`, 'POST', { digest })).status).toBe(400);
+    expect((await a.request(`/api/git/requests/${id}/execute`, 'POST', { digest, confirm: true, force: true })).status).toBe(400);
+    expect((await a.request(`/api/git/approvals/${id}/decision`, 'POST', { digest, decision: 'approved', reason: '', confirm: false })).status).toBe(400);
+    expect((await a.request(`/api/git/requests/${id}/execute`)).status).toBe(404);
+    expect((await a.request('/api/governance/sharing', 'POST', { policy: { activity: true, projects: [] }, digest, confirm: false })).status).toBe(400);
+    expect(a.factory).not.toHaveBeenCalled();
+  });
+  it('keeps Git mutations unavailable in browser mode even with a valid local request token', async () => {
+    const runtime = await createHubRuntime({ assetDirectory: assets, dataDir: join(directory, randomUUID()), port: 0, mode: 'web', enablePolling: false,
+      deviceOptions: { enablePolling: false }, appOptions: { capabilities: async () => ({ folder: false, vscode: false, claude: false, codex: false }), desktopCapabilities: async () => ({ claude: false, chatgpt: false }) } });
+    runtimes.push(runtime);
+    const workspace = await (await fetch(runtime.origin + '/api/workspace')).json();
+    const project = runtime.store.createProject({ path: directory, name: 'Browser-only project' });
+    const response = await fetch(runtime.origin + `/api/projects/${project.id}/git/preview`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-token': workspace.csrfToken },
+      body: JSON.stringify({ operation: { kind: 'stage', paths: ['file.txt'] } }) });
+    expect(response.status).toBe(400); expect((await response.json()).code).toBe('device.desktopRequired');
+    expect(runtime.store.db.prepare('SELECT COUNT(*) AS n FROM git_operations').get()!.n).toBe(0);
+  });
   it('performs pairing, remote viewing, proposal review and owner-only application through actual HTTP APIs', async () => {
     const a = await start(), b = await start(); const bootstrap = await fixture.bootstrap();
     let response = await a.request('/api/devices/pair', 'POST', { ...fixture.configuration, code: bootstrap.code, name: 'A', confirm: true });
@@ -73,6 +98,15 @@ describe('guarded device API and two desktop runtimes', () => {
     expect(safeState).not.toHaveProperty('credentials'); expect(safeState).not.toHaveProperty('token');
     const workspace = await (await a.request('/api/workspace')).json();
     expect(workspace.settings).not.toHaveProperty('credentials');
+  });
+  it('serves a packaged asset root inside a dot-directory without exposing dotfiles', async () => {
+    const hiddenAssets = join(directory, '.hidden', 'assets'); await mkdir(hiddenAssets, { recursive: true });
+    const index = '<!doctype html><title>Packaged root</title>';
+    await writeFile(join(hiddenAssets, 'index.html'), index); await writeFile(join(hiddenAssets, '.private'), 'DO_NOT_SERVE');
+    const runtime = await createHubRuntime({ assetDirectory: hiddenAssets, dataDir: join(directory, randomUUID()), port: 0, mode: 'web', enablePolling: false, deviceOptions: { enablePolling: false } });
+    runtimes.push(runtime);
+    const response = await fetch(runtime.origin + '/'); expect(response.status).toBe(200); expect(await response.text()).toBe(index);
+    expect(await (await fetch(runtime.origin + '/.private')).text()).not.toContain('DO_NOT_SERVE');
   });
   it('aborts and drains a network request before closing SQLite', async () => {
     let started!: () => void; const fetching = new Promise<void>(resolve => { started = resolve; });

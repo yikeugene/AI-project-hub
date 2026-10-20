@@ -18,6 +18,7 @@
     "pack:desktop": "npm run build:desktop && electron-builder --config electron-builder.config.cjs --win --x64 --dir --publish never",
     "dist:desktop": "node scripts/release-source.cjs && npm run build:desktop && electron-builder --config electron-builder.config.cjs --win portable nsis --x64 --publish never",
     "test:desktop": "node scripts/desktop-smoke.mjs",
+    "test:git-desktop": "node --import tsx scripts/git-desktop-smoke.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test && npm run build",

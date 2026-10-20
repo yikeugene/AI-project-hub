@@ -194,6 +194,7 @@ describe('desktop device service with the delivered SQL relay', () => {
     const c = peer(); const invitation = await a.service.invitation();
     await c.service.pair({ ...fixture.configuration, name: 'Third', code: invitation.code, confirm: true }); await sync(c);
     const preview = a.service.preview(sent.id); expect(preview.canApply).toBe(true);
+    await a.service.withGovernance(client => client.setRole(c.service.state().localDevice.id, 'admin'));
     await c.service.revoke(b.service.state().localDevice.id);
     await expect(a.service.accept(sent.id, { hash: preview.hash, revision: preview.revision, confirm: true })).rejects.toThrow();
     expect(a.store.getProject(project.id)).toEqual(project);

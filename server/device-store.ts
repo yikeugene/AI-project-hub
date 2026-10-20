@@ -4,6 +4,7 @@ import type { Store } from './db.js';
 import { appError } from './validation.js';
 import { translateError } from '../shared/messages.js';
 import { MAX_RELAY_BYTES, messagePayloadSchema, selectedMemory, sharedProjectSchema } from '../shared/devices.js';
+import { remoteDeviceStatusSchema, statusSharingPolicySchema } from '../shared/governance.js';
 import type { CachedSnapshot, ConnectionStatus, DeviceRecord, MessageDecision, MessageReceipt, MessageView, OutboundMessage, RelayConfiguration, RelayMessage, RemoteSnapshot, SharePolicy, SharedPreview, SnapshotPublication } from '../shared/devices.js';
 
 export interface RelayProfile {
@@ -95,7 +96,10 @@ export class DeviceStore {
       ON CONFLICT(profile_id,id) DO UPDATE SET name=excluded.name,last_seen_at=excluded.last_seen_at,revoked_at=COALESCE(paired_devices.revoked_at,excluded.revoked_at)`);
     for (const device of devices) {
       statement.run(profile, device.id, device.name, device.lastSeenAt, device.revokedAt);
-      if (device.revokedAt) this.store.db.prepare('UPDATE remote_snapshots SET payload=NULL WHERE profile_id=? AND owner_id=?').run(profile, device.id);
+      if (device.revokedAt) {
+        this.store.db.prepare('UPDATE remote_snapshots SET payload=NULL WHERE profile_id=? AND owner_id=?').run(profile, device.id);
+        this.withdrawCachedStatus(profile, device.id);
+      }
     }
   }
   devices(profile: string): DeviceRecord[] {
@@ -127,6 +131,14 @@ export class DeviceStore {
         ON CONFLICT(profile_id,project_id) DO UPDATE SET enabled=excluded.enabled,memory_fields=excluded.memory_fields`)
         .run(profile, policy.projectId, Number(policy.enabled), encoded([...new Set(policy.memoryFields)]));
       this.reconcilePublication(profile, policy.projectId);
+      if (!policy.enabled) {
+        const row = this.store.db.prepare('SELECT sharing_json FROM governance_profiles WHERE profile_id=?').get(profile) as Row | undefined;
+        if (row) {
+          const sharing = statusSharingPolicySchema.parse(JSON.parse(String(row.sharing_json)));
+          sharing.projects = sharing.projects.filter(project => project.projectId !== policy.projectId);
+          this.store.db.prepare('UPDATE governance_profiles SET sharing_json=? WHERE profile_id=?').run(JSON.stringify(sharing), profile);
+        }
+      }
     });
     return preview;
   }
@@ -165,17 +177,29 @@ export class DeviceStore {
     const row = this.store.db.prepare('SELECT version FROM remote_snapshots WHERE profile_id=? AND owner_id=? AND project_id=?').get(profile, owner, project) as Row | undefined;
     return Number(row?.version ?? 0);
   }
+  private withdrawCachedStatus(profile: string, owner: string, projectId?: string) {
+    const row = this.store.db.prepare('SELECT statuses_json FROM governance_profiles WHERE profile_id=?').get(profile) as Row | undefined;
+    if (!row) return;
+    const statuses = (JSON.parse(String(row.statuses_json)) as unknown[]).map(value => remoteDeviceStatusSchema.parse(value))
+      .filter(status => projectId !== undefined || status.deviceId !== owner)
+      .map(status => status.deviceId === owner ? { ...status, projects: status.projects.filter(project => project.projectId !== projectId) } : status);
+    this.store.db.prepare('UPDATE governance_profiles SET statuses_json=? WHERE profile_id=?').run(JSON.stringify(statuses), profile);
+  }
   cacheSnapshot(profile: string, snapshot: RemoteSnapshot) {
     const previous = this.store.db.prepare('SELECT version,payload FROM remote_snapshots WHERE profile_id=? AND owner_id=? AND project_id=?').get(profile, snapshot.ownerDeviceId, snapshot.projectId) as Row | undefined;
     const payload = snapshot.project ? encoded(snapshot.project) : null;
     if (previous && Number(previous.version) > snapshot.version) return;
     if (previous && Number(previous.version) === snapshot.version) {
       if (previous.payload !== payload) throw appError(409, 'device.summaryConflict');
+      if (payload === null) this.withdrawCachedStatus(profile, snapshot.ownerDeviceId, snapshot.projectId);
       return;
     }
-    this.store.db.prepare(`INSERT INTO remote_snapshots(profile_id,owner_id,project_id,version,payload,published_at,received_at) VALUES(?,?,?,?,?,?,?)
-      ON CONFLICT(profile_id,owner_id,project_id) DO UPDATE SET version=excluded.version,payload=excluded.payload,published_at=excluded.published_at,received_at=excluded.received_at`)
-      .run(profile, snapshot.ownerDeviceId, snapshot.projectId, snapshot.version, payload, snapshot.publishedAt, this.now());
+    this.store.transaction(() => {
+      this.store.db.prepare(`INSERT INTO remote_snapshots(profile_id,owner_id,project_id,version,payload,published_at,received_at) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(profile_id,owner_id,project_id) DO UPDATE SET version=excluded.version,payload=excluded.payload,published_at=excluded.published_at,received_at=excluded.received_at`)
+        .run(profile, snapshot.ownerDeviceId, snapshot.projectId, snapshot.version, payload, snapshot.publishedAt, this.now());
+      if (payload === null) this.withdrawCachedStatus(profile, snapshot.ownerDeviceId, snapshot.projectId);
+    });
   }
   snapshots(profile: string, owner: string): CachedSnapshot[] {
     if (!this.activeDevice(profile, owner)) return [];

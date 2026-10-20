@@ -7,6 +7,7 @@ module.exports = {
   electronVersion: '44.9.0',
   directories: { app: '.desktop-build/app', output: 'release' },
   files: ['main.cjs', 'preload.cjs', 'package.json', 'release-source.json', 'icon.png', 'LICENSE-AI-PROJECT-HUB.txt', 'THIRD-PARTY-NOTICES.txt', 'dist/**/*', '!**/node_modules/**'],
+  extraResources: [{ from: '.desktop-build/app/git-tools', to: 'git-tools' }],
   extraFiles: [
     { from: '.desktop-build/app/THIRD-PARTY-NOTICES.txt', to: 'THIRD-PARTY-NOTICES.txt' },
     { from: '.desktop-build/app/LICENSE-AI-PROJECT-HUB.txt', to: 'LICENSE-AI-PROJECT-HUB.txt' },

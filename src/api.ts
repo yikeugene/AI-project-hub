@@ -1,5 +1,7 @@
 import type { Workspace, Project, Task, Settings, ScanResult, HandoffPreview, SharedStatePreview, ProjectMemory, LaunchAction, TaskStatus, Priority, ProjectStatus, HandoffTarget, DesktopApp } from '../shared/types';
 import type { ApplyProposalInput, CachedSnapshot, ComposeMessageInput, DeviceState, Invitation, MessageView, PairInput, ProposalPreview, SharedPreview, SharePolicy } from '../shared/devices';
+import type { GitApproval, GitAuditEvent, GitDetails, GitDiff, GitDiffInput, GitOperation, GitPreview, GitRequestView } from '../shared/git';
+import type { DeviceRole, GovernanceState, StatusSharingPolicy, StatusSharingPreview } from '../shared/governance';
 
 import { DEFAULT_LOCALE, LocalizedError, translate, type Locale, type MessageParams } from '../shared/i18n';
 import { isErrorCode, translateError } from '../shared/messages';
@@ -80,6 +82,28 @@ export const deviceApi = {
   accept: (id: string, input: ApplyProposalInput) => request<MessageView>(`${messageUrl(id)}/accept`, 'POST', input),
   reject: (id: string) => request<MessageView>(`${messageUrl(id)}/reject`, 'POST', { confirm: true }),
   read: (id: string) => request<MessageView>(`${messageUrl(id)}/read`, 'POST', {}),
+};
+
+const gitRequestUrl = (id: string) => `/git/requests/${encodeURIComponent(id)}`;
+export const gitApi = {
+  details: (id: string) => request<GitDetails>(`${projectUrl(id)}/git/details`),
+  diff: (id: string, input: GitDiffInput) => request<GitDiff>(`${projectUrl(id)}/git/diff`, 'POST', input),
+  preview: (id: string, operation: GitOperation) => request<GitPreview>(`${projectUrl(id)}/git/preview`, 'POST', { operation }),
+  submit: (previewId: string, reviewerDeviceId: string, digest: string) => request<GitRequestView>('/git/requests', 'POST', { previewId, reviewerDeviceId, digest, confirm: true }),
+  requests: (id: string) => request<GitRequestView[]>(`${projectUrl(id)}/git/requests`),
+  execute: (id: string, digest: string) => request<GitRequestView>(`${gitRequestUrl(id)}/execute`, 'POST', { digest, confirm: true }),
+  cancel: (id: string, digest: string) => request<GitRequestView>(`${gitRequestUrl(id)}/cancel`, 'POST', { digest, confirm: true }),
+  audit: (id: string) => request<GitAuditEvent[]>(`${gitRequestUrl(id)}/audit`),
+  acknowledge: (id: string) => request<GitRequestView>(`${gitRequestUrl(id)}/acknowledge`, 'POST', { confirm: true }),
+  approvals: () => request<GitApproval[]>('/git/approvals'),
+  decide: (id: string, digest: string, decision: 'approved' | 'rejected', reason: string) => request<GitApproval>(`/git/approvals/${encodeURIComponent(id)}/decision`, 'POST', { digest, decision, reason, confirm: true }),
+};
+export const governanceApi = {
+  state: () => request<GovernanceState>('/governance'),
+  refresh: () => request<GovernanceState>('/governance/refresh', 'POST', { confirm: true }),
+  role: (deviceId: string, role: DeviceRole) => request<GovernanceState>(`/governance/roles/${encodeURIComponent(deviceId)}`, 'PATCH', { role, confirm: true }),
+  previewSharing: (policy: StatusSharingPolicy) => request<StatusSharingPreview>('/governance/sharing/preview', 'POST', { policy }),
+  saveSharing: (policy: StatusSharingPolicy, digest: string) => request<GovernanceState>('/governance/sharing', 'POST', { policy, digest, confirm: true }),
 };
 
 export function errorMessage(error: unknown, locale: Locale = DEFAULT_LOCALE): string {

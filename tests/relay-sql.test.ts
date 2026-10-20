@@ -25,7 +25,9 @@ async function network() {
 }
 const denied = (promise: Promise<unknown>, code = 'HU403') => expect(promise).rejects.toMatchObject({ code });
 
-beforeAll(async () => { fixture = await createSqlRelayFixture(); }, 60_000);
+// Archive the delivered v1 protocol's original behavior. governance-sql.test.ts runs
+// both migrations and proves that these same legacy RPCs cannot bypass v2 roles.
+beforeAll(async () => { fixture = await createSqlRelayFixture({ governance: false }); }, 60_000);
 afterAll(async () => { await fixture?.close(); });
 beforeEach(async () => { await fixture.reset(); });
 

@@ -7,6 +7,8 @@ import {
   type RelayConfiguration,
 } from '../shared/devices.js';
 import { RelayError, type RelayClient } from './relay.js';
+import { deviceRoleSchema, governancePolicySchema, deviceStatusPublicationSchema, remoteDeviceStatusSchema, type GovernanceRelay } from '../shared/governance.js';
+import { gitApprovalSchema, gitApprovalSubmissionSchema, gitConsumptionSchema, gitDigestSchema, gitExecutionResultSchema, type GitReviewSummary } from '../shared/git.js';
 
 const uuid = z.string().uuid();
 const timestamp = z.string().datetime({ offset: true });
@@ -32,6 +34,24 @@ function validPayload(value: string): boolean {
 const messageSchema = relayMessageSchema.refine(value => validPayload(value.payload)
   && createHash('sha256').update(value.payload, 'utf8').digest('hex') === value.hash);
 const snapshotSchema = remoteSnapshotSchema.refine(value => Buffer.byteLength(JSON.stringify({ projectId: value.projectId, version: value.version, project: value.project }), 'utf8') <= MAX_RELAY_BYTES);
+
+// Additional wire/privacy restrictions shared with v2 SQL, without widening the fixed DTOs.
+function safeGitSummary(summary: GitReviewSummary): boolean {
+  return summary.paths.every(path => !/^[/\\\\]|^[A-Za-z]:|(?:^|[/\\\\])\.\.(?:[/\\\\]|$)/.test(path))
+    && Number.isSafeInteger(summary.changedCount) && Number.isSafeInteger(summary.stagedCount)
+    && (summary.remoteUrl === null || (!/\s/.test(summary.remoteUrl) && /^https:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*)?$/.test(summary.remoteUrl)));
+}
+const approvalSubmissionSchema = gitApprovalSubmissionSchema.refine(value => safeGitSummary(value.summary)
+  && Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_RELAY_BYTES);
+const approvalSchema = gitApprovalSchema.refine(value => safeGitSummary(value.summary)
+  && (value.approvedBy === null || value.approvedBy === value.reviewerDeviceId)
+  && (value.state === 'consumed' ? value.executionId !== null && value.consumedAt !== null : value.executionId === null && value.consumedAt === null && value.result === null)
+  && (!['approved', 'rejected', 'consumed'].includes(value.state) || (value.approvedBy !== null && value.approvedEpoch !== null && value.decidedAt !== null)));
+const publicationStatusSchema = deviceStatusPublicationSchema.refine(value => Buffer.byteLength(JSON.stringify(value), 'utf8') <= 8192
+  && new Set(value.projects.map(project => project.projectId)).size === value.projects.length);
+const policySchema = governancePolicySchema.refine(value => value.roles.some(device => device.deviceId === value.deviceId && device.role === value.role)
+  && new Set(value.roles.map(device => device.deviceId)).size === value.roles.length);
+const remoteStatusSchema = remoteDeviceStatusSchema.refine(value => publicationStatusSchema.safeParse({ version: value.version, activity: value.activity, projects: value.projects }).success);
 
 /** Public gateway keys only. Device authorization is separate, in each RPC's POST body. */
 export function validateRelayConfiguration(config: RelayConfiguration): RelayConfiguration {
@@ -151,7 +171,41 @@ export function createSupabaseRelay(configuration: RelayConfiguration, options: 
   }
   const authenticated = (token: string) => ({ p_token: parse(tokenSchema, token) });
   const empty = z.null().transform(() => undefined);
+  const gitReference = (token: string, id: string, digest: string) => ({ ...authenticated(token), p_id: parse(uuid, id), p_digest: parse(gitDigestSchema, digest) });
+  const governance: GovernanceRelay = {
+    policy(token, signal) { return rpc('hub_v2_policy', authenticated(token), policySchema, signal); },
+    setRole(token, deviceId, role, signal) { return rpc('hub_v2_set_role', { ...authenticated(token), p_device_id: parse(uuid, deviceId), p_role: parse(deviceRoleSchema, role) }, empty, signal); },
+    submitGit(token, request, signal) {
+      const value = parse(approvalSubmissionSchema, request);
+      return rpc('hub_v2_submit_git', { ...authenticated(token), p_request: value }, approvalSchema.refine(result => result.id === value.id
+        && result.reviewerDeviceId === value.reviewerDeviceId && result.digest === value.digest && JSON.stringify(result.summary) === JSON.stringify(value.summary)
+        && Date.parse(result.expiresAt) === Date.parse(value.expiresAt)), signal);
+    },
+    listGit(token, signal) { return rpc('hub_v2_list_git', authenticated(token), z.array(approvalSchema).max(100), signal); },
+    getGit(token, id, signal) { const value = parse(uuid, id); return rpc('hub_v2_get_git', { ...authenticated(token), p_id: value }, approvalSchema.refine(result => result.id === value), signal); },
+    decideGit(token, id, digest, decision, reason, signal) {
+      const value = gitReference(token, id, digest), state = parse(z.enum(['approved', 'rejected']), decision), text = parse(z.string().max(1000), reason);
+      return rpc('hub_v2_decide_git', { ...value, p_decision: state, p_reason: text }, approvalSchema.refine(result => result.id === value.p_id && result.digest === value.p_digest && result.state === state && result.reason === text), signal);
+    },
+    cancelGit(token, id, digest, signal) {
+      const value = gitReference(token, id, digest);
+      return rpc('hub_v2_cancel_git', value, approvalSchema.refine(result => result.id === value.p_id && result.digest === value.p_digest && result.state === 'cancelled'), signal);
+    },
+    consumeGit(token, id, digest, executionId, signal) {
+      const value = { ...gitReference(token, id, digest), p_execution_id: parse(uuid, executionId) };
+      return rpc('hub_v2_consume_git', value, gitConsumptionSchema.refine(result => result.id === value.p_id && result.executionId === value.p_execution_id), signal);
+    },
+    reportGit(token, id, executionId, result, signal) {
+      return rpc('hub_v2_report_git', { ...authenticated(token), p_id: parse(uuid, id), p_execution_id: parse(uuid, executionId), p_result: parse(gitExecutionResultSchema, result) }, empty, signal);
+    },
+    publishStatus(token, status, signal) {
+      const value = parse(publicationStatusSchema, status);
+      return rpc('hub_v2_publish_status', { ...authenticated(token), p_status: JSON.stringify(value) }, empty, signal);
+    },
+    statuses(token, signal) { return rpc('hub_v2_statuses', authenticated(token), z.array(remoteStatusSchema).max(100), signal); },
+  };
   return {
+    governance,
     pair(input, signal) {
       const value = parse(pairSchema, input);
       return rpc('hub_pair', { p_attempt_id: value.attemptId, p_device_id: value.deviceId, p_token: value.deviceToken, p_code: value.inviteToken, p_name: value.name }, pairResultSchema.refine(result => result.device.id === value.deviceId), signal);

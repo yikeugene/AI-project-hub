@@ -9,28 +9,31 @@ import { createCredentialCodec } from '../desktop/credentials.js';
 const directories: string[] = [];
 const filename = () => { const dir = mkdtempSync(join(tmpdir(), 'hub-device-migration-')); directories.push(dir); return join(dir, 'hub.sqlite'); };
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
+const governanceTables = ['git_audit', 'git_operations', 'git_approval_inbox', 'governance_profiles'];
 const deviceTables = ['device_outbox', 'device_messages', 'remote_snapshots', 'project_publications', 'project_shares', 'paired_devices', 'relay_profiles', 'device_installation'];
-function asVersionOne(file: string) {
+function legacyVersion(file: string, version: 1 | 2) {
   const db = new DatabaseSync(file);
-  db.exec(deviceTables.map(table => `DROP TABLE ${table};`).join('\n') + '\nPRAGMA user_version=1;'); db.close();
+  const tables = version === 1 ? [...governanceTables, ...deviceTables] : governanceTables;
+  db.exec(tables.map(table => `DROP TABLE ${table};`).join('\n') + `\nPRAGMA user_version=${version};`); db.close();
 }
 
 describe('additive device storage migration', () => {
-  it('creates v2 from an empty database and upgrades v1 without changing local records', () => {
+  it.each([1, 2] as const)('creates v3 and upgrades v%i without changing local records', version => {
     const file = filename(); let store = new Store(file);
     const project = store.createProject({ path: '/do-not-change', name: 'Keep existing project' });
     const task = store.createTask(project.id, { title: 'Keep existing task' });
     store.updateSettings({ staleDays: 42 });
-    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(2); store.close();
-    asVersionOne(file); store = new Store(file);
+    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(3); store.close();
+    legacyVersion(file, version); store = new Store(file);
     try {
       expect(store.getProject(project.id)).toEqual(project); expect(store.getTask(task.id)).toEqual(task);
-      expect(store.getSettings().staleDays).toBe(42); expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(2);
+      expect(store.getSettings().staleDays).toBe(42); expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(3);
       expect(store.db.prepare('SELECT COUNT(*) AS n FROM relay_profiles').get()!.n).toBe(0);
+      expect(store.db.prepare('SELECT COUNT(*) AS n FROM git_operations').get()!.n).toBe(0);
     } finally { store.close(); }
   });
   it('rolls back a failed v1 migration and does not leave half-created tables', () => {
-    const file = filename(); const initial = new Store(file); initial.close(); asVersionOne(file);
+    const file = filename(); const initial = new Store(file); initial.close(); legacyVersion(file, 1);
     let db = new DatabaseSync(file); db.exec('CREATE TABLE paired_devices(incompatible TEXT)'); db.close();
     expect(() => new Store(file)).toThrow();
     db = new DatabaseSync(file);
@@ -40,10 +43,21 @@ describe('additive device storage migration', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE name='device_installation'").get()).toBeUndefined();
     } finally { db.close(); }
   });
+  it('rolls back a failed v2 governance upgrade without losing existing projects', () => {
+    const file = filename(); const initial = new Store(file);
+    const project = initial.createProject({ path: '/preserved', name: 'Preserved' }); initial.close(); legacyVersion(file, 2);
+    let db = new DatabaseSync(file); db.exec('CREATE TABLE git_operations(incompatible TEXT)'); db.close();
+    expect(() => new Store(file)).toThrow(); db = new DatabaseSync(file);
+    try {
+      expect(db.prepare('PRAGMA user_version').get()!.user_version).toBe(2);
+      expect(db.prepare('SELECT name FROM projects WHERE id=?').get(project.id)!.name).toBe('Preserved');
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE name='governance_profiles'").get()).toBeUndefined();
+    } finally { db.close(); }
+  });
   it('rejects unknown newer versions and releases the connection', () => {
-    const file = filename(), db = new DatabaseSync(file); db.exec('PRAGMA user_version=3'); db.close();
+    const file = filename(), db = new DatabaseSync(file); db.exec('PRAGMA user_version=4'); db.close();
     expect(() => new Store(file)).toThrow(/version is newer/);
-    const reopened = new DatabaseSync(file); expect(reopened.prepare('PRAGMA user_version').get()!.user_version).toBe(3); reopened.close();
+    const reopened = new DatabaseSync(file); expect(reopened.prepare('PRAGMA user_version').get()!.user_version).toBe(4); reopened.close();
   });
 });
 

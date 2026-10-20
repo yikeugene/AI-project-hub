@@ -9,6 +9,8 @@ import { createApp, type AppOptions } from './app.js';
 import { DeviceService, type DeviceOptions } from './devices.js';
 import { appError, errorResponse } from './validation.js';
 import { coreTranslator } from '../shared/locales/core.js';
+import { GovernanceService } from './governance.js';
+import { GitApprovalService, type GitEngine } from './git-approvals.js';
 
 export const PRODUCTION_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 export const DESKTOP_KEY_HEADER = 'x-hub-desktop-key';
@@ -26,8 +28,9 @@ export interface RuntimeOptions {
   mode?: 'web' | 'desktop';
   desktopSecret?: string;
   enablePolling?: boolean;
-  appOptions?: Omit<AppOptions, 'store' | 'dataDir' | 'mode' | 'deviceService'>;
+  appOptions?: Omit<AppOptions, 'store' | 'dataDir' | 'mode' | 'deviceService' | 'gitService' | 'governanceService'>;
   deviceOptions?: Omit<DeviceOptions, 'mode'> & { enablePolling?: boolean };
+  gitEngine?: Partial<GitEngine>;
   /** Development-only middleware; desktop builds never import Vite. */
   configureDevelopment?: (app: Express, server: Server) => Promise<(() => Promise<void>) | void>;
 }
@@ -56,7 +59,13 @@ export async function createHubRuntime(options: RuntimeOptions) {
     });
   }
   const devices = new DeviceService(store, { ...options.deviceOptions, mode });
-  const { app, refreshAll, waitForIdle } = createApp({ ...options.appOptions, store, dataDir, mode, deviceService: devices });
+  const governance = new GovernanceService(store, devices);
+  const git = new GitApprovalService(store, devices, governance, options.gitEngine);
+  governance.onRefresh((client, context) => git.sync(client, context));
+  devices.onSynced(async () => { await governance.refresh(); });
+  const { app, refreshAll, waitForIdle } = createApp({ ...options.appOptions, store, dataDir, mode, deviceService: devices,
+    gitService: git, governanceService: governance,
+    onActivity: (kind, state) => { governance.record(kind, state); options.appOptions?.onActivity?.(kind, state); } });
   outer.use(app);
   const server = createServer(outer);
   let disposeDevelopment: (() => Promise<void>) | void = undefined;
@@ -67,7 +76,7 @@ export async function createHubRuntime(options: RuntimeOptions) {
     else {
       app.use((_req, res, next) => { res.setHeader('Content-Security-Policy', PRODUCTION_CSP); next(); });
       app.use(express.static(assets, { index: false }));
-      app.get('/{*path}', (_req, res) => res.sendFile(join(assets, 'index.html')));
+      app.get('/{*path}', (_req, res) => res.sendFile('index.html', { root: assets }));
     }
     await new Promise<void>((done, fail) => {
       const failed = (error: Error) => { server.off('listening', ready); fail(error); };
@@ -75,6 +84,8 @@ export async function createHubRuntime(options: RuntimeOptions) {
       server.once('error', failed); server.once('listening', ready); server.listen(port, '127.0.0.1');
     });
   } catch (error) {
+    await git.stop();
+    await governance.stop();
     await devices.stop();
     await disposeDevelopment?.();
     store.close();
@@ -101,6 +112,8 @@ export async function createHubRuntime(options: RuntimeOptions) {
     closing = (async () => {
       // server.close drains all HTTP work, not only Git observations.
       const drained = new Promise<void>((done, fail) => server.close(error => error ? fail(error) : done()));
+      await git.stop();
+      await governance.stop();
       await devices.stop();
       await disposeDevelopment?.();
       await drained;
@@ -109,6 +122,12 @@ export async function createHubRuntime(options: RuntimeOptions) {
     })();
     return closing;
   }
-  return { origin, port: actualPort, dataDir, store, devices, refreshAll, stop };
+  function setActivityMode(mode: 'foreground' | 'background') { if (!closing) governance.setActivityMode(mode); }
+  function resumed() {
+    if (closing) return;
+    void devices.worker.syncNow();
+    void refreshAll().catch(() => {});
+  }
+  return { origin, port: actualPort, dataDir, store, devices, governance, git, refreshAll, setActivityMode, resumed, stop };
 }
 export type HubRuntime = Awaited<ReturnType<typeof createHubRuntime>>;

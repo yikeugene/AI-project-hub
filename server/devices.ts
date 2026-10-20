@@ -12,6 +12,10 @@ import { HttpError, appError, memorySchema, revisionSchema } from './validation.
 import { RelayError, type RelayFactory, type SecureCodec } from './relay.js';
 import { createSupabaseRelay, validateRelayConfiguration } from './supabase-relay.js';
 import { SyncWorker, syncError, type SyncSession } from './sync.js';
+import type { GovernanceRelay } from '../shared/governance.js';
+
+export type AuthorizedGovernance = { [K in keyof GovernanceRelay]: GovernanceRelay[K] extends (token: string, ...args: infer A) => infer R ? (...args: A) => R : never };
+export interface GovernanceContext { profileId: string; networkId: string; deviceId: string; assertCurrent(): void }
 
 const uuid = z.string().uuid();
 const confirmation = z.object({ confirm: z.literal(true) }).strict();
@@ -28,9 +32,36 @@ export class DeviceService {
   private controlBusy = false;
   private operations = new Set<Promise<unknown>>();
   private controllers = new Set<AbortController>();
+  private afterSync?: () => Promise<void>;
   constructor(store: Store, private options: DeviceOptions = {}) {
     this.repository = new DeviceStore(store, options.clock);
-    this.worker = new SyncWorker(this.repository, () => this.session(), session => this.current(session));
+    this.worker = new SyncWorker(this.repository, () => this.session(), session => this.current(session), () => this.afterSync?.() ?? Promise.resolve());
+  }
+  onSynced(callback: () => Promise<void>) { this.afterSync = callback; }
+  async withGovernance<T>(action: (client: AuthorizedGovernance, context: GovernanceContext) => Promise<T>): Promise<T> {
+    return this.remote(async (session, signal) => {
+      const { relay, token, profile } = session;
+      const governance = relay.governance;
+      if (!governance) throw appError(409, 'governance.upgrade');
+      const assertCurrent = () => {
+        if (signal.aborted || !this.current(session)) throw appError(409, 'proposal.connectionChanged');
+      };
+      const checked = async <V>(operation: () => Promise<V>) => { assertCurrent(); const value = await operation(); assertCurrent(); return value; };
+      const client: AuthorizedGovernance = {
+        policy: () => checked(() => governance.policy(token, signal)),
+        setRole: (id, role) => checked(() => governance.setRole(token, id, role, signal)),
+        submitGit: request => checked(() => governance.submitGit(token, request, signal)),
+        listGit: () => checked(() => governance.listGit(token, signal)),
+        getGit: id => checked(() => governance.getGit(token, id, signal)),
+        decideGit: (id, digest, decision, reason) => checked(() => governance.decideGit(token, id, digest, decision, reason, signal)),
+        cancelGit: (id, digest) => checked(() => governance.cancelGit(token, id, digest, signal)),
+        consumeGit: (id, digest, executionId) => checked(() => governance.consumeGit(token, id, digest, executionId, signal)),
+        reportGit: (id, executionId, result) => checked(() => governance.reportGit(token, id, executionId, result, signal)),
+        publishStatus: status => checked(() => governance.publishStatus(token, status, signal)),
+        statuses: () => checked(() => governance.statuses(token, signal)),
+      };
+      return action(client, { profileId: profile.id, networkId: profile.networkId!, deviceId: profile.deviceId, assertCurrent });
+    });
   }
   private locale() { return this.repository.store.getSettings().locale; }
   private available() {

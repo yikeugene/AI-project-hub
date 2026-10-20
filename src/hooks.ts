@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, deviceApi, errorMessage } from './api';
+import { api, deviceApi, errorMessage, governanceApi } from './api';
+import type { GovernanceState } from '../shared/governance';
 import type { DeviceState } from '../shared/devices';
 import type { Workspace } from '../shared/types';
 import type { DesktopBridge } from '../shared/desktop';
@@ -101,6 +102,67 @@ export function useDevices() {
   return { state, loading, error: errorMessage(error, locale), reload, update };
 }
 export type DeviceController = ReturnType<typeof useDevices>;
+
+/** Reads cached policy/status only. Cloud refresh and mutations are explicit user actions. */
+export function useGovernance(networkId: string | null) {
+  const locale = useLocale();
+  const [snapshot, setSnapshot] = useState<{ scope: string | null; state: GovernanceState } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const sequence = useRef(0);
+  const scope = useRef(networkId); scope.current = networkId;
+  const mutation = useRef(false);
+  const alive = useRef(true);
+  const reload = useCallback(async () => {
+    if (mutation.current) return;
+    const current = ++sequence.current;
+    const expectedScope = networkId;
+    try {
+      const state = await governanceApi.state();
+      if (alive.current && sequence.current === current && scope.current === expectedScope) {
+        setSnapshot({ scope: expectedScope, state }); setError(null);
+      }
+    } catch (err) {
+      if (alive.current && sequence.current === current && scope.current === expectedScope) { setSnapshot(null); setError(err); }
+    } finally { if (alive.current && sequence.current === current && scope.current === expectedScope) setLoading(false); }
+  }, [networkId]);
+  const update = useCallback(async (operation: () => Promise<GovernanceState>) => {
+    if (mutation.current) throw new LocalizedError(clientMessages, 'deviceBusy');
+    mutation.current = true; sequence.current++;
+    const expectedScope = networkId;
+    try {
+      const state = await operation();
+      if (alive.current && scope.current === expectedScope) { setSnapshot({ scope: expectedScope, state }); setError(null); setLoading(false); }
+      return state;
+    } catch (err) {
+      mutation.current = false;
+      if (scope.current === expectedScope) await reload();
+      throw err;
+    } finally { mutation.current = false; }
+  }, [networkId, reload]);
+  useEffect(() => {
+    alive.current = true; setSnapshot(null); setError(null); setLoading(true);
+    void reload();
+    const timer = window.setInterval(() => { if (!document.hidden) void reload(); }, 15_000);
+    const visible = () => { if (!document.hidden) void reload(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { alive.current = false; sequence.current++; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [reload]);
+  return { state: snapshot?.scope === networkId ? snapshot.state : null, loading, error: errorMessage(error, locale), reload, update };
+}
+export type GovernanceController = ReturnType<typeof useGovernance>;
+
+/** A clock only updates labels/expiry checks; it never performs or approves an operation. */
+export function useNow(interval = 15_000) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const timer = window.setInterval(tick, interval);
+    document.addEventListener('visibilitychange', tick);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); };
+  }, [interval]);
+  return now;
+}
 
 /** Call with a stable, scoped loader; an old device/box response cannot replace a new one. */
 export function useDeviceResource<T>(load: () => Promise<T>) {

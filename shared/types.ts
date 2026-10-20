@@ -19,7 +19,7 @@ export const PRIORITY_LABELS = getPriorityLabels();
 export const TASK_LABELS = getTaskLabels();
 
 export interface GitCommit { hash: string; shortHash: string; subject: string; date: string }
-export interface GitChange { path: string; index: string; worktree: string }
+export interface GitChange { path: string; index: string; worktree: string; originalPath?: string }
 export interface GitSnapshot {
   isRepo: boolean;
   branch: string | null;

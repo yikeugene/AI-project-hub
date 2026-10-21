@@ -114,7 +114,7 @@ App 活動、Git 摘要與手動任務計數全部另行 opt-in、預設關閉�
 
 ## 資料庫升級與備份
 
-目前本機 SQLite schema 為 **v3**，保存 approval／execution journal 與 governance 狀態。舊版 App 不能開啟升級後的資料庫，沒有自動降版；這與雲端 v1／v2 RPC 的相容安排不同。
+目前本機 SQLite schema 為 **v5**，保存 approval／execution journal 與 governance 狀態。舊版 App 不能開啟升級後的資料庫，沒有自動降版；這與雲端 v1／v2 RPC 的相容安排不同。
 
 備份前從系統匣完全退出 Hub，停止 web-mode 程序，等待受控工作及關閉流程完成，再複製整個資料目錄（包含必要 WAL／其他相關檔案），不要只複製使用中的 `hub.sqlite`。不要讓不同版本操作同一份資料庫。若要回退，只能以相容舊版的升級前備份使用另一資料目錄，不能把新版 journal 留在原檔再強行降低 schema version。
 

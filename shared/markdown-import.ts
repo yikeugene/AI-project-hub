@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import type { ChangeEntry, MemoryField } from './devices.js';
-import { DEFAULT_LOCALE, LOCALES, LocalizedError, type Locale, type MessageParams } from './i18n.js';
-import { errorMessages, type ErrorCode } from './messages.js';
+import { DEFAULT_LOCALE, LOCALES, type Locale } from './i18n.js';
+import { MarkdownLines, checkMarkdownSize as checkSize, decodeMarkdownInline as inlineText, failMarkdown as fail, frameMarkdownPrompt } from './markdown-text.js';
+export { MarkdownImportError, MAX_MARKDOWN_BYTES } from './markdown-text.js';
 import { SHARED_SUMMARY_LABELS } from './shared-summary.js';
 import { getMemoryLabels, getPriorityLabels, getStatusLabels, MEMORY_FIELDS, type ProjectMemory } from './types.js';
 
-export const MAX_MARKDOWN_BYTES = 1024 * 1024;
 export type MarkdownImportField = 'nextAction' | MemoryField;
 export interface MarkdownImportSource {
   projectId: string; projectName: string; revision: number; version: number;
@@ -29,13 +29,6 @@ export interface MarkdownImportApplyInput {
   text: string; projectId: string; hash: string; revision: number; digest: string; confirm: true;
 }
 
-export class MarkdownImportError extends LocalizedError<ErrorCode> {
-  constructor(readonly code: ErrorCode, params: MessageParams = {}) {
-    super(errorMessages, code, params);
-    this.name = 'MarkdownImportError';
-  }
-}
-
 const HEADER_FIELDS = ['group', 'owner', 'project', 'version', 'revision', 'state', 'published', 'received', 'synced', 'status', 'priority', 'stage'] as const;
 type HeaderField = typeof HEADER_FIELDS[number];
 const ALL_FIELDS: readonly MarkdownImportField[] = ['nextAction', ...MEMORY_FIELDS];
@@ -55,22 +48,7 @@ for (const locale of LOCALES) {
 }
 const uuidSchema = z.string().uuid();
 const dateSchema = z.string().datetime({ offset: true });
-const encoder = new TextEncoder();
 const blank = (value: string) => value.trim().length === 0;
-function fail(code: ErrorCode): never { throw new MarkdownImportError(code); }
-
-function checkSize(text: string, code: 'markdown.large' | 'markdown.promptLarge') {
-  // The cheap UTF-16 length check avoids allocating an encoding for arbitrarily large input.
-  if (text.length > MAX_MARKDOWN_BYTES || encoder.encode(text).byteLength > MAX_MARKDOWN_BYTES) fail(code);
-}
-
-/** Reverse only the exporter's inline escaping, once. Never interpret HTML or Markdown. */
-function inlineText(value: string, maximum: number, minimum = 0): string {
-  const decoded = value.replace(/\\([\\`*_{}\[\]()#+.!|~-])/g, '$1')
-    .replace(/&(amp|lt|gt);/g, (_, entity: 'amp' | 'lt' | 'gt') => ({ amp: '&', lt: '<', gt: '>' })[entity]);
-  if (decoded.length < minimum || decoded.length > maximum || /[\u0000-\u001f\u007f]/.test(decoded)) fail('markdown.invalid');
-  return decoded;
-}
 function uuid(value: string): string {
   if (!uuidSchema.safeParse(value).success) fail('markdown.invalid');
   return value;
@@ -98,52 +76,6 @@ function unexpected(line: string): never {
   if (headerEntry(line) || line.startsWith('# ') || summaryTitles.has(line)) fail('markdown.duplicate');
   if (line.startsWith('~~~') || line.startsWith('```')) fail('markdown.fence');
   return fail('markdown.invalid');
-}
-
-/** Bounded, forward-only reader. Body lines never enter the metadata/heading parser. */
-class MarkdownLines {
-  private readonly lines: string[];
-  private cursor = 0;
-  private end: number;
-  constructor(text: string) {
-    const withoutBom = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-    this.lines = withoutBom.replace(/\r\n?/g, '\n').split('\n');
-    this.end = this.lines.length;
-    while (this.cursor < this.end && blank(this.lines[this.cursor])) this.cursor++;
-    while (this.end > this.cursor && blank(this.lines[this.end - 1])) this.end--;
-    if (this.cursor === this.end) fail('markdown.invalid');
-    if (this.lines[this.cursor].startsWith('```')) {
-      const wrapper = /^(`{3,})(?:md|markdown)$/.exec(this.lines[this.cursor]);
-      if (!wrapper || this.end - this.cursor < 3 || this.lines[this.end - 1] !== wrapper[1]) fail('markdown.fence');
-      this.cursor++; this.end--;
-      // A backtick line that could end the outer fence makes the enclosure ambiguous,
-      // even if it happens to sit inside a tilde block in the enclosed document.
-      for (let index = this.cursor; index < this.end; index++) {
-        const closing = /^ {0,3}(`{3,})[\t ]*$/.exec(this.lines[index]);
-        if (closing && closing[1].length >= wrapper[1].length) fail('markdown.fence');
-      }
-    }
-  }
-  next(): string | undefined {
-    while (this.cursor < this.end && blank(this.lines[this.cursor])) this.cursor++;
-    return this.cursor < this.end ? this.lines[this.cursor++] : undefined;
-  }
-  body(field: MarkdownImportField): string {
-    const opening = this.next();
-    if (opening === undefined || !/^~{3,}text$/.test(opening)) fail('markdown.fence');
-    const fence = opening.slice(0, -4), start = this.cursor, maximum = field === 'nextAction' ? 2000 : 20000;
-    let length = 0;
-    while (this.cursor < this.end) {
-      const line = this.lines[this.cursor++];
-      if (line === fence) return this.lines.slice(start, this.cursor - 1).join('\n');
-      // Export fences are longer than every body tilde run. Do not guess at a
-      // mismatched closing fence or accept text that could close a Markdown block.
-      if (line.includes(fence)) fail('markdown.fence');
-      length += line.length + (this.cursor - 1 > start ? 1 : 0);
-      if (length > maximum) fail('markdown.fieldLarge');
-    }
-    return fail('markdown.fence');
-  }
 }
 
 /**
@@ -187,7 +119,7 @@ export function parseSummaryMarkdown(text: string): ParsedSummaryMarkdown {
     if (nextHeadings.has(line)) {
       if (values.has('nextAction')) fail('markdown.duplicate');
       if (memorySection) fail('markdown.invalid');
-      values.set('nextAction', lines.body('nextAction'));
+      values.set('nextAction', lines.body(2000));
     } else if (memorySections.has(line)) {
       if (memorySection) fail('markdown.duplicate');
       memorySection = true;
@@ -195,7 +127,7 @@ export function parseSummaryMarkdown(text: string): ParsedSummaryMarkdown {
       const field = memoryHeadings.get(line)!;
       if (values.has(field)) fail('markdown.duplicate');
       if (!memorySection) fail('markdown.invalid');
-      values.set(field, lines.body(field));
+      values.set(field, lines.body(20000));
     } else if (footers.has(line)) {
       footer = true;
       const remaining = lines.next();
@@ -247,15 +179,5 @@ const FILL_INSTRUCTIONS: Record<Locale, string> = {
 /** Pure, deterministic clipboard text. Only the provided download enters the prompt. */
 export function buildMarkdownFillPrompt(markdown: string, locale: Locale = DEFAULT_LOCALE): string {
   parseSummaryMarkdown(markdown);
-  let longest = 0, run = 0;
-  for (const character of markdown) {
-    run = character === '`' ? run + 1 : 0;
-    if (run > longest) longest = run;
-  }
-  const fence = '`'.repeat(Math.max(3, longest + 1));
-  // Keep the exact original (BOM, line endings, whitespace and all); parsing above
-  // normalizes only its own copy. A content-specific frame cannot occur in the input.
-  const prompt = `${FILL_INSTRUCTIONS[locale]}\n\n${fence}markdown\n${markdown}${markdown.endsWith('\n') ? '' : '\n'}${fence}\n`;
-  checkSize(prompt, 'markdown.promptLarge');
-  return prompt;
+  return frameMarkdownPrompt(FILL_INSTRUCTIONS[locale], markdown);
 }

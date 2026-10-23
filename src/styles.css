@@ -409,7 +409,7 @@ input:disabled, textarea:disabled, select:disabled { background: #f5f7fb; }
 .overview-bottom > span { color: #6f7581; font-size: 11px; }
 .memory-toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 13px 0 17px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 22px; }
 .memory-toolbar > span { font-size: 11px; color: #6f7582; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
-.memory-toolbar > div { display: flex; gap: 6px; }
+.memory-toolbar > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .memory-toolbar .button { font-size: 11px; min-height: 32px; padding: 6px 9px; }
 .toolbar-divider { height: 10px; width: 1px; background: #e0e3eb; margin: 0 5px; }
 .save-state { font-size: 11px; color: #6b786e; display: inline-flex; align-items: center; gap: 5px; }

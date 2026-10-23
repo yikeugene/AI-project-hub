@@ -23,11 +23,29 @@ export function hasCurrentGovernance(state: GovernanceState | null | undefined, 
   return !!state?.available && !!state.policy && !state.error && !!devices?.paired
     && state.policy.networkId === devices.networkId && state.policy.deviceId === devices.localDevice.id;
 }
+export function gitReviewers(state: GovernanceState | null | undefined, devices: DeviceState | null | undefined) {
+  if (!hasCurrentGovernance(state, devices)) return [];
+  return (state?.policy?.roles ?? []).filter(role => role.role === 'admin' && (role.deviceId === devices?.localDevice.id || devices?.devices.some(device => device.id === role.deviceId && !device.revokedAt)));
+}
+export function gitWriteBlockReason(devices: DeviceState | null, state: GovernanceState | null, loading: boolean, error: boolean): GitMessageKey | null {
+  if (!devices) return 'writeChecking';
+  if (devices.connection === 'locked') return 'writeCredentials';
+  if (!devices.desktopAvailable) return 'writeDesktop';
+  if (devices.connection === 'revoked') return 'writeRevoked';
+  if (!devices.paired || !devices.profileId) return 'writePairing';
+  if (!devices.enabled) return 'writePaused';
+  if (devices.connection !== 'online') return 'writeOffline';
+  if (loading) return 'writeChecking';
+  if (error || !hasCurrentGovernance(state, devices)) return 'writeGovernance';
+  if (!gitReviewers(state, devices).length) return 'noReviewer';
+  return null;
+}
 export function approvalDisplayState(approval: GitApproval, now = Date.now()): LocalGitState | 'consumed' {
   if (approval.result) return approval.result.status;
   if ((approval.state === 'pending' || approval.state === 'approved') && Date.parse(approval.expiresAt) <= now) return 'expired';
   return approval.state;
 }
+export const isRecoverableGitState = (state: LocalGitState | null) => state === 'unknown' || state === 'partial';
 export function requestDisplayState(state: LocalGitState, expiresAt: string, now = Date.now()): LocalGitState {
   return (state === 'prepared' || state === 'pending' || state === 'approved') && Date.parse(expiresAt) <= now ? 'expired' : state;
 }

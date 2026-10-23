@@ -54,6 +54,8 @@ const messages = {
   'path.missing': ['Directory does not exist: {path}', '資料夾不存在：{path}'],
   'path.denied': ['Directory cannot be accessed: {path}', '無法存取資料夾：{path}'],
   'markdown.invalid': ['Use one complete Shared Workspace Markdown summary with its original headings and source metadata. The format or a metadata value is invalid.', '請使用一份完整的共享工作區 Markdown 摘要，保留原有標題與來源資料。格式或來源資料的值不正確。'],
+  'memoryMarkdown.invalid': ['Use the complete project-memory Markdown from this project’s fill-in prompt or Download draft, including its format marker, project UUID, base revision and fenced fields. Legacy plain drafts and shared summaries use a different format.', '請使用這個專案的填寫 Prompt 或「下載草稿」產生的完整專案記憶 Markdown，保留格式標記、專案 UUID、基準修訂與欄位圍欄。舊版純文字草稿及共享摘要使用不同格式。'],
+  'markdown.unicode': ['The text contains an invalid Unicode character that UTF-8 cannot preserve. Correct the affected text before copying, exporting or importing; nothing was replaced silently.', '文字包含 UTF-8 無法保留的無效 Unicode 字元，請先修正內容再複製、匯出或匯入；不會靜默替換字元。'],
   'markdown.large': ['The Markdown text exceeds the 1 MiB UTF-8 limit.', 'Markdown 文字超過 1 MiB UTF-8 大小上限。'],
   'markdown.duplicate': ['The Markdown contains duplicate metadata, sections or fields. Keep each item only once, including translated headings.', 'Markdown 含有重複的來源資料、區段或欄位。每個項目只能出現一次，翻譯後的標題也算重複。'],
   'markdown.fence': ['A Markdown code fence is missing, mismatched or ambiguous. Preserve matching tilde fences; an optional outer md/markdown backtick fence must enclose the whole document without commentary.', 'Markdown 程式碼區塊的圍欄缺少、不相符或不明確。請保留成對的波浪號圍欄；選用的外層 md/markdown 反引號圍欄必須包住整份文件，不能附加說明。'],

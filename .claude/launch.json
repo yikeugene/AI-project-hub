@@ -24,6 +24,18 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--import", "tsx", "scripts/shared-workspace-preview.ts"],
       "port": 4320
+    },
+    {
+      "name": "Local memory isolated preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "scripts/memory-ui-preview.ts"],
+      "port": 4321
+    },
+    {
+      "name": "Git recovery isolated preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "scripts/git-recovery-preview.ts"],
+      "port": 4322
     }
   ]
 }

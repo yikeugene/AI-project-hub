@@ -57,7 +57,7 @@ export function ProjectDetail({ project, projects, tasks, capabilities, desktopA
         <div hidden={tab !== 'wrapup'}><QuickWrapUpPanel project={project} blocked={memoryDirty || memoryBusy || handoffDirty || handoffBusy || editing} onChange={onChange} onDirtyChange={setWrapUpDirty} onBusyChange={setWrapUpBusy} /></div>
         {tab === 'tasks' && <TasksPanel projects={projects} tasks={tasks} projectId={project.id} onChange={onChange} />}
         {gitVisited && <div hidden={tab !== 'git'}><GitPanel project={project} devices={devices} governance={governance} active={tab === 'git'} onChange={onChange} onDirtyChange={setGitDirty} onBusyChange={setGitBusy} /></div>}
-        <div hidden={tab !== 'memory'}><MemoryPanel project={project} blockedMessage={wrapUpDirty || wrapUpBusy ? r('resolveWrapUp') : undefined} onChange={onChange} onDirtyChange={setMemoryDirty} onBusyChange={setMemoryBusy} /></div>
+        <div hidden={tab !== 'memory'}><MemoryPanel project={project} importBlocked={handoffDirty || handoffBusy || editing} blockedMessage={wrapUpDirty || wrapUpBusy ? r('resolveWrapUp') : undefined} onChange={onChange} onDirtyChange={setMemoryDirty} onBusyChange={setMemoryBusy} /></div>
         {handoffVisited && <div hidden={tab !== 'handoff'}><HandoffPanel project={project} tasks={tasks} desktopApps={desktopApps} memoryDirty={memoryDirty || wrapUpDirty} memoryBusy={memoryBusy || wrapUpBusy} onChange={onChange} onDirtyChange={setHandoffDirty} onBusyChange={setHandoffBusy} /></div>}
       </div>
     </Modal>

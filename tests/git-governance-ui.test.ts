@@ -8,7 +8,7 @@ import { EMPTY_MEMORY, type Project } from '../shared/types';
 import { api, gitApi, governanceApi } from '../src/api';
 import { GitReview, GitStateBadge } from '../src/components/GitReview';
 import { RemoteDeviceActivity, RemoteProjectStatus, StatusReceipt } from '../src/components/RemoteStatus';
-import { approvalDisplayState, canonicalSharing, gitDiagnosticKey, gitOperationStateKey, hasCurrentGovernance, isStaged, isStatusFresh, isUnstaged, requestDisplayState } from '../src/git-ui';
+import { approvalDisplayState, canonicalSharing, gitDiagnosticKey, gitOperationStateKey, gitWriteBlockReason, hasCurrentGovernance, isStaged, isStatusFresh, isUnstaged, requestDisplayState } from '../src/git-ui';
 import type { GovernanceController } from '../src/hooks';
 import { I18nProvider } from '../src/i18n';
 import { GitApprovalPanel } from '../src/panels/GitApprovalPanel';
@@ -48,7 +48,7 @@ const project: Project = { id: projectId, name: 'Project', path: 'C:\\private-pr
 const noop = () => {}; const noopAsync = async () => {};
 const render = (content: ReactNode, locale: 'en' | 'zh-TW' = 'en') => renderToStaticMarkup(createElement(I18nProvider, { initialLocale: locale, children: content }));
 const button = (html: string, label: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]).find(text => text.includes(label));
-beforeEach(() => { resource.data = []; resource.error = ''; vi.spyOn(Date, 'now').mockReturnValue(now); });
+beforeEach(() => { resource.data = []; resource.loading = false; resource.error = ''; vi.spyOn(Date, 'now').mockReturnValue(now); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('Git approval frontend boundaries', () => {
@@ -74,6 +74,25 @@ describe('Git approval frontend boundaries', () => {
     expect(hasCurrentGovernance({ ...state, policy: { ...state.policy!, deviceId: otherId } }, devices)).toBe(false);
     expect(hasCurrentGovernance(state, { ...devices, paired: false })).toBe(false);
     expect(hasCurrentGovernance(null, devices)).toBe(false);
+  });
+  it('explains actual write prerequisites without changing authorization', () => {
+    expect(gitWriteBlockReason(null, state, false, false)).toBe('writeChecking');
+    expect(gitWriteBlockReason({ ...devices, desktopAvailable: false }, state, false, false)).toBe('writeDesktop');
+    expect(gitWriteBlockReason({ ...devices, paired: false }, state, false, false)).toBe('writePairing');
+    expect(gitWriteBlockReason({ ...devices, profileId: null }, state, false, false)).toBe('writePairing');
+    expect(gitWriteBlockReason({ ...devices, enabled: false }, state, false, false)).toBe('writePaused');
+    expect(gitWriteBlockReason({ ...devices, connection: 'error' }, state, false, false)).toBe('writeOffline');
+    expect(gitWriteBlockReason({ ...devices, connection: 'revoked' }, state, false, false)).toBe('writeRevoked');
+    expect(gitWriteBlockReason({ ...devices, connection: 'locked' }, state, false, false)).toBe('writeCredentials');
+    expect(gitWriteBlockReason(devices, state, true, false)).toBe('writeChecking');
+    expect(gitWriteBlockReason(devices, state, false, true)).toBe('writeGovernance');
+    expect(gitWriteBlockReason(devices, { ...state, available: false }, false, false)).toBe('writeGovernance');
+    expect(gitWriteBlockReason(devices, { ...state, policy: { ...state.policy!, roles: [] } }, false, false)).toBe('noReviewer');
+    expect(gitWriteBlockReason(devices, state, false, false)).toBeNull();
+    for (const locale of ['en', 'zh-TW'] as const) {
+      const html = render(createElement(GitPanel, { project, devices: { ...devices, paired: false }, governance, active: true, onChange: noopAsync, onDirtyChange: noop, onBusyChange: noop }), locale);
+      expect(html).toContain(gitMessages[locale].writePairing); expect(html).toContain(gitMessages[locale].writeRequirements);
+    }
   });
   it('separates staged and unstaged paths without splitting or interpreting unusual file names', () => {
     const path = ':!x\n中文 file.txt';
@@ -129,7 +148,7 @@ describe('Git approval frontend boundaries', () => {
     expect(button(html, gitMessages.en.approve)).toContain('disabled=""');
   });
   it('exposes execution only for approved local requests and never offers retry for unknown results', () => {
-    const props = { projectId, profileId, canManage: true, canExecute: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
+    const props = { projectId, profileId, canManage: true, canExecute: true, canRecover: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
     resource.data = [request];
     expect(button(render(createElement(GitRequests, props)), gitMessages.en.execute)).not.toContain('disabled=');
     expect(button(render(createElement(GitRequests, { ...props, canExecute: false })), gitMessages.en.execute)).toContain('disabled=""');
@@ -148,6 +167,50 @@ describe('Git approval frontend boundaries', () => {
     expect(html).toContain(gitMessages.en.acknowledged);
     expect(button(html, gitMessages.en.inspectUnknown)).toBeUndefined();
     expect(button(html, gitMessages.en.execute)).toBeUndefined();
+  });
+  it.each(['unknown', 'partial'] as const)('allows desktop-local %s recovery without online management or membership', status => {
+    const props = { projectId, canManage: false, canExecute: false, canRecover: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
+    resource.data = [{ ...request, state: status, preview: { ...request.preview, expiresAt: createdAt } }];
+    for (const scope of [null, profileId]) for (const locale of ['en', 'zh-TW'] as const) {
+      const html = render(createElement(GitRequests, { ...props, profileId: scope }), locale);
+      const recovery = button(html, gitMessages[locale].inspectUnknown);
+      expect(recovery).toBeDefined(); expect(recovery).not.toContain('disabled=');
+      expect(html).toContain(gitMessages[locale][status === 'unknown' ? 'unknownWarning' : 'partialWarning']);
+      expect(button(html, gitMessages[locale].execute)).toBeUndefined();
+      expect(button(html, gitMessages[locale].cancel)).toBeUndefined();
+    }
+    resource.data = [{ ...request, state: status, fenceAcknowledged: true }];
+    const acknowledged = render(createElement(GitRequests, { ...props, profileId: null }));
+    expect(acknowledged).toContain(gitMessages.en[status]);
+    expect(acknowledged).toContain(gitMessages.en.acknowledged);
+    expect(button(acknowledged, gitMessages.en.inspectUnknown)).toBeUndefined();
+    expect(button(acknowledged, gitMessages.en.execute)).toBeUndefined();
+  });
+  it.each(['unknown', 'partial'] as const)('keeps %s recovery disabled without desktop capability, during work or after a read error', status => {
+    const props = { projectId, profileId: null, canManage: false, canExecute: false, canRecover: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
+    resource.data = [{ ...request, state: status }];
+    for (const override of [{ canRecover: false }, { canRecover: false, canManage: true, canExecute: true }, { blocked: true }]) {
+      const html = render(createElement(GitRequests, { ...props, ...override }));
+      expect(button(html, gitMessages.en.inspectUnknown)).toContain('disabled=""');
+    }
+    resource.error = 'Recovery journal read failed';
+    expect(button(render(createElement(GitRequests, props)), gitMessages.en.inspectUnknown)).toContain('disabled=""');
+    resource.error = ''; resource.loading = true;
+    expect(button(render(createElement(GitRequests, props)), gitMessages.en.inspectUnknown)).toBeUndefined();
+  });
+  it('never substitutes local recovery capability for execution or cancellation authority', () => {
+    const props = { projectId, profileId, canManage: false, canExecute: true, canRecover: true, blocked: false, version: 0, onBusyChange: noop, onExecuted: noopAsync };
+    for (const status of ['prepared', 'pending', 'approved'] as const) {
+      resource.data = [{ ...request, state: status }];
+      const html = render(createElement(GitRequests, props));
+      expect(button(html, gitMessages.en.cancel)).toContain('disabled=""');
+      if (status === 'approved') expect(button(html, gitMessages.en.execute)).toContain('disabled=""');
+      expect(button(html, gitMessages.en.inspectUnknown)).toBeUndefined();
+    }
+    for (const status of ['succeeded', 'failed', 'cancelled', 'rejected', 'stale', 'expired', 'consuming', 'executing'] as const) {
+      resource.data = [{ ...request, state: status }];
+      expect(button(render(createElement(GitRequests, props)), gitMessages.en.inspectUnknown)).toBeUndefined();
+    }
   });
   it('does not display a cached project Git snapshot as a fresh read before details load', () => {
     const cached = { ...project, git: { isRepo: true, branch: 'OLD-CACHED-BRANCH', head: null, branches: [], commits: [], changes: [], changedCount: 0, untrackedCount: 0, stagedCount: 0, conflictCount: 0, lastCommitAt: null, observedAt: createdAt } };

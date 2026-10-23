@@ -6,7 +6,7 @@ import { GIT_OPERATION_KINDS, gitOperationSchema, type GitDetails, type GitDiff,
 import type { GitChange, Project } from '../../shared/types';
 import { errorMessage, gitApi } from '../api';
 import { isNetworkOnline } from '../device-ui';
-import { gitDiagnosticKey, gitOperationStateKey, hasCurrentGovernance, isConflict, isStaged, isUnstaged } from '../git-ui';
+import { gitDiagnosticKey, gitOperationStateKey, gitWriteBlockReason, hasCurrentGovernance, isConflict, isStaged, isUnstaged } from '../git-ui';
 import { formatDate, useAction, useBeforeUnload, useNow, type GovernanceController } from '../hooks';
 import { GitReview } from '../components/GitReview';
 import { Button, ConfirmDialog, EmptyState, ErrorNotice, Field, Loading, Notice, SectionHeading } from '../components/ui';
@@ -86,6 +86,7 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
   const git = details?.snapshot;
   const governanceValid = hasCurrentGovernance(governance.state, devices) && !governance.error;
   const canManage = governanceValid && isNetworkOnline(devices);
+  const writeBlockReason = gitWriteBlockReason(devices, governance.state, governance.loading, !!governance.error);
   const canWrite = canManage && !!git?.isRepo && !readError && !readBusy && !details?.unsupportedReasons.length && !details?.operationState && !git.conflictCount;
   const reviewers = governanceValid ? (governance.state?.policy?.roles ?? []).filter(role => role.role === 'admin' && (role.deviceId === devices?.localDevice.id || devices?.devices.some(device => device.id === role.deviceId && !device.revokedAt))) : [];
   const reviewerValid = reviewers.some(item => item.deviceId === reviewer);
@@ -155,7 +156,7 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
   return <section className="git-panel">
     <SectionHeading title={t('title')} subtitle={git ? t('lastChecked', { date: formatDate(git.observedAt, true, locale) }) : t('notChecked')}><Button icon={RefreshCw} busy={readBusy} disabled={action.busy || requestBusy || diffBusy} onClick={() => { invalidate(); void readDetails(); }}>{t('refresh')}</Button></SectionHeading>
     <ErrorNotice message={errorMessage(readError, locale)} />
-    {!canManage && <Notice warning>{t('writeUnavailable')}</Notice>}
+    {writeBlockReason && <Notice warning><p>{t(writeBlockReason)}</p><p className="field-hint">{t('writeRequirements')}</p></Notice>}
     <ErrorNotice message={governance.error || governance.state?.error || ''} />
     {readBusy ? <Loading label={t('loading')} /> : !git ? <EmptyState compact icon={GitBranch} title={t('unavailableTitle')} description={t('unavailableDescription')} /> : !git.isRepo ? <EmptyState compact icon={GitBranch} title={t('notRepoTitle')} description={t('notRepoDescription')} /> : <>
       <p className="git-workflow"><ShieldCheck size={17} aria-hidden="true" />{t('workflow')}</p>
@@ -188,7 +189,7 @@ export function GitPanel({ project, devices, governance, active, onChange, onDir
       {!submitConfirm && <ErrorNotice message={action.error} />}
       <section className="detail-section"><h3><GitCommitHorizontal size={17} aria-hidden="true" />{t('recentCommits')}</h3><p className="field-hint">{t('commitTimeHint')}</p>{git.commits.length ? <div className="commit-list">{git.commits.map(commit => <div className="commit-row" key={commit.hash}><GitCommitHorizontal size={16} aria-hidden="true" /><code title={commit.hash}>{commit.shortHash}</code><strong>{commit.subject}</strong><time dateTime={commit.date}>{formatDate(commit.date, true, locale)}</time></div>)}</div> : <p className="quiet-empty">{t('noCommits')}</p>}</section>
     </>}
-    <GitRequests key={`${project.id}:${profileScope}`} projectId={project.id} profileId={profileScope} canManage={canManage} canExecute={canWrite} blocked={action.busy || readBusy || diffBusy} version={requestVersion} onBusyChange={setRequestBusy} onExecuted={afterExecution} />
+    <GitRequests key={`${project.id}:${profileScope}`} projectId={project.id} profileId={profileScope} canManage={canManage} canExecute={canWrite} canRecover={!!devices?.desktopAvailable} blocked={action.busy || readBusy || diffBusy} version={requestVersion} onBusyChange={setRequestBusy} onExecuted={afterExecution} />
     <p className="field-hint">{t('readonlyHint')}</p>
     {submitConfirm && preview && <ConfirmDialog title={t('submitTitle')} confirmLabel={t('submitConfirm')} busy={action.busy} confirmDisabled={!canWrite || !reviewerValid || previewExpired} error={action.error} onClose={() => setSubmitConfirm(false)} onConfirm={() => { void submit(); }}><p>{t('submitDescription')}</p><p className="preserve-lines">{t('reviewer')}: <strong>{reviewer}</strong></p><GitReview summary={preview.summary} digest={preview.digest} expiresAt={preview.expiresAt} /><Notice warning>{t('previewPrivacy')}</Notice></ConfirmDialog>}
   </section>;

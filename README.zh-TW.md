@@ -2,17 +2,17 @@
 
 [English](README.md) · **繁體中文**
 
-**下載 Windows x64 v0.6.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-portable-x64.exe)
+**下載 Windows x64 v0.7.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe)
 
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint、Git 觀測與逐次審批的 Git 操作，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
-**v0.6.0 新增：**「我的聚焦」、「快速收工」與接續卡，協助重返專案；共享工作區加入可複製的 AI 填寫 Prompt 及經確認的 Markdown 匯入。詳見[版本說明](docs/RELEASE-0.6.0.md)。
+**v0.7.0 新增：** 本機專案記憶的填寫 Prompt 與 Markdown 匯入，先預覽及套用草稿，再另行儲存；Git 提供更清楚的診斷，以及離線／解除配對後的本機恢復。詳見[版本說明](docs/RELEASE-0.7.0.md)。
 
 **v0.4.0 引入：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。Git 審批需依文件套用 v2 relay 遷移並指定管理員。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
 
-**升級注意：** v0.6.0 會將本機資料庫升級至 **schema v5**。升級前請完全退出 Hub 並備份整個資料目錄；舊版無法開啟升級後資料庫，回退須還原相容的升級前備份。
+**升級注意：** v0.7.0 沿用 v0.6.0 引入的 **schema v5**，從 v0.6.0 升級沒有新增遷移；更早版本會升級至 v5。升級前請完全退出 Hub 並備份整個資料目錄；v0.6.0 之前的舊版無法開啟 schema v5 資料庫，回退須還原相容的升級前備份。
 
 **Markdown 匯入：** 匯出摘要經差異預覽與明確確認後，只更新對應本機專案中非空的記憶欄位及下一步；缺少／空白欄位保留原值，不需要 AI API 或新增檔案權限。詳見 [Markdown 匯入與 Prompt 說明](docs/MARKDOWN-IMPORT.md)。
 
@@ -28,16 +28,16 @@
 
 ## 取得 Windows 桌面版
 
-透過下方連結直接下載 **v0.6.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
+透過下方連結直接下載 **v0.7.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
 執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
 | 下載 | 用途 |
 | --- | --- |
-| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
-| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.6.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/SHA256SUMS.txt)
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.7.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/SHA256SUMS.txt)
 
 v0.4.0 已設定正式 GitHub 更新來源。從 v0.3.0 升級仍需手動下載本版，因舊版未設定更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
@@ -53,7 +53,7 @@ Git 檢視與經批准的 Git 操作需要 Git；沒有 Git 仍可使用專案�
 4. **儲存 checkpoint。** 在專案記憶記錄目前進度、決策與已知問題。
 5. **繼續工作。** 工作台結合已記錄脈絡、Git 事實與可解釋的建議；commit 數量不是完成百分比。
 
-正式工作區不會預填示範專案。**v0.6.0 會將本機 SQLite schema 升級至第 5 版。** 升級前請備份；已安裝的舊版程式無法開啟升級後資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
+正式工作區不會預填示範專案。**v0.7.0 使用 v0.6.0 引入的本機 SQLite schema 第 5 版。** 升級前請備份；v0.6.0 之前的舊版程式無法開啟 schema v5 資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
 
 ## AI 交接：複製、貼上、審閱
 
@@ -74,6 +74,12 @@ Git 檢視與經批准的 Git 操作需要 Git；沒有 Git 仍可使用專案�
 4. 只會更新**九個專案記憶欄位與 `nextAction`**。匯入不會修改原始碼、路徑、生命週期狀態或任務，也不執行其中的指令文字。
 
 貼上本身不會儲存 checkpoint。修改貼上文字會讓預覽失效；確認時會重新檢查專案 ID、schema、文字指紋與本機修訂版本。請去除 AI 的前後說明，不要只匯入片段 JSON。符合 schema 不代表 AI 的敘述正確，仍須審閱內容。
+
+### 以 Markdown 填寫專案記憶
+
+在本機專案的「專案記憶」頁按 **記憶填寫 Prompt**，審閱並複製目前九欄草稿的範本，包含未儲存及未共享內容。請自行在 AI App 提供專案背景；Hub 不自動傳送，也不呼叫 AI API。**下載草稿** 使用同一份 Project Memory v1 格式。
+
+按 **匯入 Markdown**，選擇 UTF-8 檔案或貼上完整回覆，與目前草稿比較差異，再確認 **套用至草稿**；最後另按 **儲存記憶**。UUID 必須符合目前專案，空白／缺欄保留原值，不修改獨立的專案 `nextAction`、任務、檔案或 Git。儲存仍檢查修訂版本並遵循既有共享設定。此流程不需要配對或雲端；共享摘要及舊版純文字草稿使用不同格式，詳見 [Markdown 格式說明](docs/MARKDOWN-IMPORT.md)。
 
 ### 進階 CLI 與檔案交換
 
@@ -182,7 +188,7 @@ npm run test:desktop
 
 `npm run test:ui` **只建立 UI fixtures**，包括範例儲存庫及 `.local/verification/hub.sqlite`。它不是 UI 測試執行器，也不會啟動或驗證 App。
 
-v0.6.0 已通過 36 個測試檔／609 個案例、40 項打包桌面檢查、6 項接續功能補充檢查、9 項打包 Git 檢查及 4 組免安裝生命週期檢查，沒有跳過項目；更新中繼資料已核對實際安裝包。詳見 [v0.6.0 本版驗證](docs/RELEASE-0.6.0.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。自行建置仍須重新驗證。
+v0.7.0 驗證涵蓋 37 個測試檔／650 個案例、40 項打包桌面檢查、6 項本機記憶補充檢查、9 項打包 Git 檢查及 4 組免安裝生命週期檢查，沒有跳過項目。首輪執行停頓造成逾時後，Git 測試檔與免安裝檢查重跑通過，所有案例均取得通過結果；更新中繼資料已核對實際安裝包。詳見 [v0.7.0 本版驗證](docs/RELEASE-0.7.0.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。自行建置仍須重新驗證。
 
 ### 可選的 web 開發模式
 

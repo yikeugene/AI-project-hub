@@ -56,18 +56,18 @@ export class GitApprovalService {
   }
   async details(projectId: string) {
     try { return await this.engine.details(this.store.getProject(projectId).path); }
-    catch (error) { throw appError(400, gitFailureCode(error)); }
+    catch (error) { throw appError(400, gitFailureCode(error), error instanceof HttpError ? error.params : undefined); }
   }
   async diff(projectId: string, input: GitDiffInput) {
     try { return await this.engine.diff(this.store.getProject(projectId).path, input); }
-    catch (error) { throw appError(400, gitFailureCode(error)); }
+    catch (error) { throw appError(400, gitFailureCode(error), error instanceof HttpError ? error.params : undefined); }
   }
   async preview(profileId: string, projectId: string, operation: GitOperation) {
     const profile = this.profile(profileId), project = this.store.getProject(projectId);
     const captured = this.devices.captureProfile(profileId);
     let plan;
     try { plan = await this.engine.prepare(project.path, gitOperationSchema.parse(operation), { projectId, projectName: project.name }); }
-    catch (error) { throw appError(400, gitFailureCode(error)); }
+    catch (error) { throw appError(400, gitFailureCode(error), error instanceof HttpError ? error.params : undefined); }
     captured.assertCurrent();
     if (this.closing) throw appError(503, 'device.closing');
     if (this.repository.fenced(plan.repositoryKey)) throw appError(409, 'gitops.unknown');

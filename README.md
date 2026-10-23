@@ -2,17 +2,17 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
-**Download v0.6.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-portable-x64.exe)
+**Download v0.7.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe)
 
 A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, Git observations, and individually approved Git actions in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
 
-**New in v0.6.0:** My focus, Quick wrap-up, and resume cards help you return to your projects. Shared Workspace adds a copy-only AI fill-in prompt and confirmed Markdown import. See the [release notes](docs/RELEASE-0.6.0.md).
+**New in v0.7.0:** Local project memory gains a fill-in prompt and Markdown import with draft preview and a separate save step. Git adds clearer diagnostics and local recovery while offline or unpaired. See the [release notes](docs/RELEASE-0.7.0.md).
 
 **Introduced in v0.4.0:** approved Git operations, administrator roles, optional device status, close-to-tray behavior, and a configured GitHub update source. Git approvals require you to upgrade your own relay using the documented v2 migration and designate an administrator.
 
 **The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
 
-**Upgrade notice:** v0.6.0 migrates the local database to **schema v5**. Quit Hub completely and back up the full data directory before upgrading. Older apps cannot open the upgraded database; reverting requires a compatible pre-upgrade backup.
+**Upgrade notice:** v0.7.0 retains **schema v5**, introduced in v0.6.0. There is no new migration from v0.6.0; earlier versions migrate to v5. Quit Hub completely and back up the full data directory before upgrading. Apps older than v0.6.0 cannot open a schema-v5 database; reverting requires a compatible pre-upgrade backup.
 
 **Markdown import:** Exported summaries can update only the matching local project’s nonblank memory fields and next action after a diff preview and confirmation. Missing/blank fields preserve local content; no AI API or new filesystem permission is required. See the [guide](docs/MARKDOWN-IMPORT.md).
 
@@ -28,16 +28,16 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 ## Get the Windows app
 
-Download **v0.6.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
+Download **v0.7.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
 
 Run the installer to install for your Windows user, or download and double-click the portable executable. GitHub's **Source code (zip)** and **Source code (tar.gz)** archives are for developers.
 
 | Download | Use |
 | --- | --- |
-| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
-| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/AI-Project-Hub-0.6.0-portable-x64.exe) | Run directly without an installer. |
+| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
+| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe) | Run directly without an installer. |
 
-[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.6.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.6.0/SHA256SUMS.txt)
+[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.7.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/SHA256SUMS.txt)
 
 Version 0.4.0 configures the official GitHub update source. Users upgrading from 0.3.0 must download this release manually because that version has no configured updater. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
 
@@ -53,7 +53,7 @@ Git is needed for Git views and approved Git operations; projects, memory, tasks
 4. **Save a checkpoint.** Use project memory for the current state, decisions, and known issues.
 5. **Continue work.** The workbench combines recorded context with Git facts and explainable suggestions. Commit counts are not completion percentages.
 
-Your normal workspace is not seeded with demo projects. **Version 0.6.0 upgrades the local SQLite schema to version 5.** Back up before upgrading: older installed apps cannot open the upgraded database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
+Your normal workspace is not seeded with demo projects. **Version 0.7.0 uses local SQLite schema version 5, introduced in v0.6.0.** Back up before upgrading: apps older than v0.6.0 cannot open a schema-v5 database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
 
 ## AI handoffs: copy, paste, review
 
@@ -74,6 +74,12 @@ Opening an app does **not** select a conversation, transmit context, read your p
 4. Only the **nine project-memory fields and `nextAction`** are updated. Import does not change source code, paths, lifecycle status, or tasks, and does not execute command text.
 
 Pasting alone never saves the checkpoint. Editing the pasted text invalidates its preview; confirmation rechecks the project ID, schema, text fingerprint, and local revision. Remove surrounding AI commentary rather than importing a partial JSON fragment. A valid schema is not proof that an AI's claims are correct—review the content.
+
+### Fill project memory with Markdown
+
+In a local project's **Project memory** tab, use **Memory fill-in prompt** to review and copy a template containing the current nine-field draft, including unsaved and unshared content. Supply the project context in your AI app yourself; Hub does not send it or call an AI API. **Download draft** uses the same Project Memory v1 format.
+
+Use **Import Markdown**, select a UTF-8 file or paste the complete reply, preview changes against your current draft, and confirm **Apply to draft**. Then review and click **Save memory** separately. Import requires the same project UUID, skips blank/missing fields, and never changes the separate project `nextAction`, tasks, files or Git. Saving retains revision checks and existing sharing settings. This works without pairing or cloud setup. Shared-workspace summaries and legacy plain drafts use different formats; see [Markdown formats](docs/MARKDOWN-IMPORT.md).
 
 ### Advanced CLI and file exchange
 
@@ -182,7 +188,7 @@ npm run test:desktop
 
 `npm run test:ui` **only creates UI fixtures**, including sample repositories and `.local/verification/hub.sqlite`. It is not a UI test runner and does not launch or verify the app.
 
-The v0.6.0 release passed all 609 tests across 36 files, 40 packaged desktop checks, 6 additional resumption checks, 9 packaged Git checks, and 4 portable lifecycle groups, with no skipped checks. Installer update metadata matches the built installer. See the [v0.6.0 release verification](docs/RELEASE-0.6.0.md#verification--驗證) for build and test results and the [verification boundaries](docs/GIT-SAFETY.md#verification-scope). NSIS installation/uninstallation, end-to-end update installation, live Supabase, true multi-connection PostgreSQL races, and two physical desktops remain unverified. Rerun the checks on your own builds.
+The v0.7.0 release validation covers 650 tests across 37 files, 40 packaged desktop checks, 6 additional local-memory checks, 9 packaged Git checks, and 4 portable lifecycle groups, with no skipped checks. The Git test file and portable checks passed on rerun after execution pauses caused deadline failures; every test case has a passing result. Installer update metadata matches the built installer. See the [v0.7.0 release verification](docs/RELEASE-0.7.0.md#verification--驗證) for build and test results and the [verification boundaries](docs/GIT-SAFETY.md#verification-scope). NSIS installation/uninstallation, end-to-end update installation, live Supabase, true multi-connection PostgreSQL races, and two physical desktops remain unverified. Rerun the checks on your own builds.
 
 ### Optional web development mode
 

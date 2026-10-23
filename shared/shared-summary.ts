@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sharedProjectSchema, type SharedProject, type SummaryDownload } from './devices.js';
 import { DEFAULT_LOCALE, type Locale } from './i18n.js';
+import { markdownInline as inline, markdownBlock as block } from './markdown-text.js';
 import { getMemoryLabels, getPriorityLabels, getStatusLabels, MEMORY_FIELDS } from './types.js';
 
 const timestamp = z.string().datetime({ offset: true }).nullable();
@@ -10,13 +11,6 @@ const sourceSchema = z.object({
   publishedAt: timestamp, receivedAt: timestamp, lastSyncAt: timestamp,
 }).strict();
 export type SharedSummarySource = z.infer<typeof sourceSchema>;
-const inline = (value: string) => value.replace(/[\r\n\u0000-\u001f\u007f]/g, ' ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*_{}\[\]()#+.!|~-]/g, '\\$&');
-function block(value: string) {
-  // Shared text is data, not executable HTML/Markdown. A content-specific fence cannot be closed by its body.
-  const longest = Math.max(0, ...(value.match(/~+/g) ?? []).map(run => run.length));
-  const fence = '~'.repeat(Math.max(3, longest + 1));
-  return `${fence}text\n${value}\n${fence}`;
-}
 function filename(name: string, projectId: string, version: number) {
   let stem = Array.from(name.normalize('NFC').replace(/[<>:"/\\|?*\p{Cc}\p{Cf}]/gu, '-')).slice(0, 80).join('').replace(/[. ]+$/g, '').trim();
   if (!stem || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(stem)) stem = `summary-${stem || 'project'}`;

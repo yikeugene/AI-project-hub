@@ -4,6 +4,7 @@ import type { ApplyProposalInput, CachedSnapshot, ComposeMessageInput, DeviceSta
 import type { GitApproval, GitAuditEvent, GitDetails, GitDiff, GitDiffInput, GitOperation, GitPreview, GitRequestView } from '../shared/git';
 import type { DeviceRole, GovernanceState, StatusSharingPolicy, StatusSharingPreview } from '../shared/governance';
 import type { MarkdownImportApplyInput, MarkdownImportPreview } from '../shared/markdown-import';
+import type { AppObservationPolicy, AppObservationPreview, AppObservationState } from '../shared/app-observation';
 
 import { DEFAULT_LOCALE, LocalizedError, translate, type Locale, type MessageParams } from '../shared/i18n';
 import { isErrorCode, translateError } from '../shared/messages';
@@ -121,6 +122,13 @@ export const governanceApi = {
   role: (profileId: string, deviceId: string, role: DeviceRole) => request<GovernanceState>(`/governance/roles/${encodeURIComponent(deviceId)}`, 'PATCH', { role, confirm: true }, profileId),
   previewSharing: (profileId: string, policy: StatusSharingPolicy) => request<StatusSharingPreview>('/governance/sharing/preview', 'POST', { policy }, profileId),
   saveSharing: (profileId: string, policy: StatusSharingPolicy, digest: string) => request<GovernanceState>('/governance/sharing', 'POST', { policy, digest, confirm: true }, profileId),
+};
+
+export const appObservationApi = {
+  state: (profileId: string | null) => request<AppObservationState>('/app-observation', 'GET', undefined, profileId),
+  refresh: (profileId: string) => request<AppObservationState>('/app-observation/refresh', 'POST', { confirm: true }, profileId),
+  previewSharing: (profileId: string, policy: AppObservationPolicy) => request<AppObservationPreview>('/app-observation/sharing/preview', 'POST', { policy }, profileId),
+  saveSharing: (profileId: string, policy: AppObservationPolicy, digest: string) => request<AppObservationState>('/app-observation/sharing', 'POST', { policy, digest, confirm: true }, profileId),
 };
 
 export function errorMessage(error: unknown, locale: Locale = DEFAULT_LOCALE): string {

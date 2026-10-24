@@ -4,7 +4,8 @@ import type { Project } from '../../shared/types';
 import type { DeviceGroup, DeviceRecord, Invitation, PairInput } from '../../shared/devices';
 import { deviceApi } from '../api';
 import { canSyncGroup, getConnectionLabels, devicePresence, isNetworkOnline, shortDeviceId } from '../device-ui';
-import { copyText, formatDate, useAction, useBeforeUnload, type DeviceController, type GovernanceController } from '../hooks';
+import { copyText, formatDate, useAction, useAppObservation, useBeforeUnload, type DeviceController, type GovernanceController } from '../hooks';
+import { AppObservationSettings } from './AppObservationSettings';
 import { hasCurrentGovernance } from '../git-ui';
 import { GovernanceSettings } from './GovernanceSettings';
 import { GroupSharingSettings } from './GroupSharingSettings';
@@ -17,6 +18,7 @@ type Confirmation = { kind: 'pair'; input: PairInput } | { kind: 'resume' | 'pau
 export function DeviceSettings({ devices, governance, projects, onDirtyChange, onBusyChange }: { devices: DeviceController; governance?: GovernanceController; projects: Project[]; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void }) {
   const locale = useLocale(); const t = useT(deviceMessages); const g = useT(groupMessages); const connectionLabels = getConnectionLabels(locale);
   const { state, update } = devices;
+  const appObservation = useAppObservation(state?.profileId ?? null);
   const [name, setName] = useState(state?.localDevice.name ?? '');
   const [originalName, setOriginalName] = useState(state?.localDevice.name ?? '');
   const [url, setUrl] = useState(''); const [publishableKey, setPublishableKey] = useState(''); const [code, setCode] = useState(''); const [joinLabel, setJoinLabel] = useState('');
@@ -30,14 +32,15 @@ export function DeviceSettings({ devices, governance, projects, onDirtyChange, o
   const [labelSaved, setLabelSaved] = useState(false);
   const [sharingDirty, setSharingDirty] = useState(false); const [sharingBusy, setSharingBusy] = useState(false);
   const [governanceDirty, setGovernanceDirty] = useState(false); const [governanceBusy, setGovernanceBusy] = useState(false);
+  const [appObservationDirty, setAppObservationDirty] = useState(false); const [appObservationBusy, setAppObservationBusy] = useState(false);
   const action = useAction(); const nameAction = useAction(); const copyAction = useAction();
   const profileRef = useRef(state?.profileId); profileRef.current = state?.profileId;
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const nameDirty = name !== originalName;
   const labelsDirty = (state?.groups ?? []).some(group => labels[group.id] !== undefined && labels[group.id] !== group.label);
-  const dirty = nameDirty || labelsDirty || !!url || !!publishableKey || !!code || !!joinLabel || sharingDirty || governanceDirty;
-  const busy = action.busy || nameAction.busy || copyAction.busy || sharingBusy || governanceBusy;
+  const dirty = nameDirty || labelsDirty || !!url || !!publishableKey || !!code || !!joinLabel || sharingDirty || governanceDirty || appObservationDirty;
+  const busy = action.busy || nameAction.busy || copyAction.busy || sharingBusy || governanceBusy || appObservationBusy;
   useBeforeUnload(dirty || busy);
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
@@ -54,8 +57,8 @@ export function DeviceSettings({ devices, governance, projects, onDirtyChange, o
   const online = isNetworkOnline(state);
   const admin = hasCurrentGovernance(governance?.state, state) && !governance?.error && governance?.state?.policy?.role === 'admin';
   const enabledControls = state.desktopAvailable && !busy;
-  const mutationBlocked = sharingDirty || governanceDirty;
-  const clearDrafts = () => { setUrl(''); setPublishableKey(''); setCode(''); setJoinLabel(''); setLabels({}); setName(state.localDevice.name); setOriginalName(state.localDevice.name); setSharingDirty(false); setGovernanceDirty(false); setDraftVersion(value => value + 1); };
+  const mutationBlocked = sharingDirty || governanceDirty || appObservationDirty;
+  const clearDrafts = () => { setUrl(''); setPublishableKey(''); setCode(''); setJoinLabel(''); setLabels({}); setName(state.localDevice.name); setOriginalName(state.localDevice.name); setSharingDirty(false); setGovernanceDirty(false); setAppObservationDirty(false); setDraftVersion(value => value + 1); };
   const selectGroup = async (profileId: string, discard = false) => {
     if (busy || !state.groups.some(group => group.id === profileId)) return;
     const result = await action.run(() => update(() => deviceApi.selectGroup(profileId)));
@@ -122,9 +125,10 @@ export function DeviceSettings({ devices, governance, projects, onDirtyChange, o
       <form className="pairing-form form-stack" aria-label={t('pairingLabel')} onSubmit={askPair}><Field label={g('joinLabel')} hint={g('joinLabelHint')}><input maxLength={120} value={joinLabel} disabled={!enabledControls} onChange={event => setJoinLabel(event.target.value)} /></Field><div className="form-grid"><Field label={t('supabaseUrl')} required hint={t('supabaseHint')}><input type="url" required maxLength={250} placeholder="https://your-project.supabase.co" value={url} disabled={!enabledControls} onChange={event => setUrl(event.target.value)} autoComplete="off" spellCheck={false} /></Field><Field label={t('publishableKey')} required hint={t('keyHint')}><input required type="password" minLength={20} maxLength={2048} value={publishableKey} disabled={!enabledControls} onChange={event => setPublishableKey(event.target.value)} autoComplete="off" spellCheck={false} /></Field></div><Field label={t('pairingCode')} required hint={t('codeHint')}><input required type="password" pattern="[a-f0-9]{64}" minLength={64} maxLength={64} value={code} disabled={!enabledControls} onChange={event => setCode(event.target.value)} autoComplete="off" spellCheck={false} /></Field><div><Button type="submit" icon={Link2} disabled={!enabledControls || mutationBlocked}>{t('checkPair')}</Button></div></form>
     </section>
     {!confirmation && !pendingGroup && <ErrorNotice message={action.error} />}{message && <p className="inline-success" role="status"><Check size={15} />{t(message)}</p>}{labelSaved && <p className="inline-success" role="status"><Check size={15} />{g('labelSaved')}</p>}
-    <GroupSharingSettings key={`sharing:${draftVersion}`} projects={projects} groups={state.groups} enabled={state.desktopAvailable} blocked={action.busy || nameAction.busy || copyAction.busy || governanceBusy} onDirtyChange={setSharingDirty} onBusyChange={setSharingBusy} onChange={devices.reload} />
-    {governance && <GovernanceSettings key={`governance:${state.profileId}:${draftVersion}`} governance={governance} devices={state} projects={projects} blocked={action.busy || nameAction.busy || copyAction.busy || sharingBusy} onDirtyChange={setGovernanceDirty} onBusyChange={setGovernanceBusy} onChange={devices.reload} />}
-    {pendingGroup && <ConfirmDialog title={g('switchTitle')} confirmLabel={g('switchConfirm')} danger busy={action.busy} error={action.error} confirmDisabled={nameAction.busy || copyAction.busy || sharingBusy || governanceBusy} onClose={() => setPendingGroup(null)} onConfirm={() => { void selectGroup(pendingGroup, true); }}><p>{g('switchDescription')}</p></ConfirmDialog>}
+    <GroupSharingSettings key={`sharing:${draftVersion}`} projects={projects} groups={state.groups} enabled={state.desktopAvailable} blocked={action.busy || nameAction.busy || copyAction.busy || governanceBusy || appObservationBusy} onDirtyChange={setSharingDirty} onBusyChange={setSharingBusy} onChange={devices.reload} />
+    {governance && <GovernanceSettings key={`governance:${state.profileId}:${draftVersion}`} governance={governance} devices={state} projects={projects} blocked={action.busy || nameAction.busy || copyAction.busy || sharingBusy || appObservationBusy} onDirtyChange={setGovernanceDirty} onBusyChange={setGovernanceBusy} onChange={devices.reload} />}
+    <AppObservationSettings key={`app-observation:${state.profileId}:${state.networkId}:${state.localDevice.id}:${draftVersion}`} observation={appObservation} devices={state} blocked={action.busy || nameAction.busy || copyAction.busy || sharingBusy || governanceBusy} onDirtyChange={setAppObservationDirty} onBusyChange={setAppObservationBusy} />
+    {pendingGroup && <ConfirmDialog title={g('switchTitle')} confirmLabel={g('switchConfirm')} danger busy={action.busy} error={action.error} confirmDisabled={nameAction.busy || copyAction.busy || sharingBusy || governanceBusy || appObservationBusy} onClose={() => setPendingGroup(null)} onConfirm={() => { void selectGroup(pendingGroup, true); }}><p>{g('switchDescription')}</p></ConfirmDialog>}
     {confirmation && <ConfirmDialog title={confirmation.kind === 'pair' ? t('pairConfirmTitle') : confirmation.kind === 'resume' ? t('resumeConfirmTitle') : confirmation.kind === 'pause' ? t('pauseConfirmTitle') : confirmation.kind === 'disconnect' ? g('leaveTitle') : t('revokeConfirmTitle')} confirmLabel={confirmation.kind === 'pair' ? t('pairConfirm') : confirmation.kind === 'resume' ? t('resumeConfirm') : confirmation.kind === 'pause' ? t('pauseConfirm') : confirmation.kind === 'disconnect' ? g('leaveConfirm') : t('revokeConfirm')} danger={confirmation.kind === 'disconnect' || confirmation.kind === 'revoke'} busy={action.busy} error={action.error} confirmDisabled={!state.desktopAvailable || (confirmation.kind !== 'pair' && !state.groups.some(group => group.id === confirmation.group.id)) || (confirmation.kind === 'revoke' && (!online || !admin || confirmation.group.id !== state.profileId))} onClose={() => setConfirmation(null)} onConfirm={() => { void execute(); }}>
       {confirmation.kind !== 'pair' && <p>{g('groupContext', { label: confirmation.group.label, id: confirmation.group.id })}</p>}
       {confirmation.kind === 'pair' && <><p>{t('pairBeforeName')}<strong>{confirmation.input.name}</strong>{t('pairBeforeUrl')}<span className="preserve-lines">{confirmation.input.url}</span>{t('pairAfterUrl')}</p><p>{t('pairBeforeAudience')}<strong>{t('allDevices')}</strong>{t('pairAfterAudience')}</p></>}

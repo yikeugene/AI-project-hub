@@ -14,6 +14,7 @@ import { clipboardInput, isAppUrl, isMainDocumentUrl, saveTextInput } from './se
 import { createCredentialCodec } from './credentials.js';
 import { UpdateController } from './updater.js';
 import { DesktopLifecycle, type ExitIntent } from './lifecycle.js';
+import { createWindowsForegroundSource } from '../server/windows-foreground.js';
 
 app.setName('AI Project Hub');
 app.setAppUserModelId('local.aiprojecthub.desktop');
@@ -297,6 +298,7 @@ async function start() {
   desktopSecret = randomBytes(32).toString('hex');
   startingRuntime = createHubRuntime({ dataDir, assetDirectory: join(app.getAppPath(), 'dist'), port: 0, mode: 'desktop', desktopSecret,
     deviceOptions: { codec: createCredentialCodec(safeStorage, process.platform, () => locale) },
+    appObservationOptions: { source: createWindowsForegroundSource({ executable: join(process.resourcesPath, 'app-observation', 'foreground-app.exe') }) },
     appOptions: { onSettingsChanged: settings => { locale = settings.locale; rebuildMenu(); } } });
   runtime = await startingRuntime;
   if (lifecycle.exiting) { await finishShutdown(); return; }
@@ -306,7 +308,20 @@ async function start() {
   installNativeBridge();
   rebuildMenu();
   createTray();
-  powerMonitor.on('resume', () => { if (!lifecycle.exiting) runtime?.resumed(); });
+  let suspended = false;
+  const unlocked = () => {
+    try { return ['active', 'idle'].includes(powerMonitor.getSystemIdleState(1)); } catch { return false; }
+  };
+  let sessionUnlocked = unlocked();
+  const reportSession = () => { if (!lifecycle.exiting) runtime?.setAppObservationSessionAvailable(!suspended && sessionUnlocked); };
+  reportSession();
+  powerMonitor.on('lock-screen', () => { sessionUnlocked = false; reportSession(); });
+  powerMonitor.on('unlock-screen', () => { sessionUnlocked = true; reportSession(); });
+  powerMonitor.on('suspend', () => { suspended = true; reportSession(); });
+  powerMonitor.on('resume', () => {
+    suspended = false; sessionUnlocked = unlocked(); reportSession();
+    if (!lifecycle.exiting) runtime?.resumed();
+  });
   await createMainWindow();
 }
 

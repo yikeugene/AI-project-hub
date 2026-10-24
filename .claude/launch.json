@@ -36,6 +36,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--import", "tsx", "scripts/git-recovery-preview.ts"],
       "port": 4322
+    },
+    {
+      "name": "Current app isolated preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "scripts/app-observation-preview.ts"],
+      "port": 4323
     }
   ]
 }

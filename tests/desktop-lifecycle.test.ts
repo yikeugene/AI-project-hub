@@ -41,15 +41,18 @@ describe('desktop close intent', () => {
 });
 
 /** Test-only Electron host. Production main/bridge/lifecycle run unmodified. */
-async function boot(options: { trayFails?: boolean; loadFails?: boolean; startupWait?: Promise<void> } = {}) {
+const originalResourcesPath = Object.getOwnPropertyDescriptor(process, 'resourcesPath');
+async function boot(options: { trayFails?: boolean; loadFails?: boolean; startupWait?: Promise<void>; initialSession?: 'active' | 'idle' | 'locked' | 'unknown' } = {}) {
   vi.resetModules();
   vi.stubGlobal('__dirname', '/fixture/app');
+  Object.defineProperty(process, 'resourcesPath', { configurable: true, value: '/fixture/resources' });
+  const createWindowsForegroundSource = vi.fn((_options: { executable: string }) => ({ available: () => true, sample: vi.fn() }));
   const calls: string[] = [];
   const backend = {
     origin: 'http://127.0.0.1:43171',
     store: { getSettings: () => ({ locale: 'en' as Locale }) },
     stop: vi.fn(async () => { calls.push('stop'); }),
-    setActivityMode: vi.fn(), resumed: vi.fn(),
+    setActivityMode: vi.fn(), setAppObservationSessionAvailable: vi.fn(), resumed: vi.fn(),
   };
   let onSettingsChanged: (settings: { locale: Locale }) => void = () => {};
   const createHubRuntime = vi.fn(async (input: { appOptions: { onSettingsChanged: typeof onSettingsChanged } }) => {
@@ -63,7 +66,7 @@ async function boot(options: { trayFails?: boolean; loadFails?: boolean; startup
     ipc.set(channel, callback);
   }) };
   const dialog = { showMessageBoxSync: vi.fn(() => 0), showErrorBox: vi.fn(), showOpenDialog: vi.fn(), showSaveDialog: vi.fn() };
-  const powerMonitor = new EventEmitter();
+  const powerMonitor = Object.assign(new EventEmitter(), { getSystemIdleState: vi.fn(() => options.initialSession ?? 'active') });
   const exited = vi.fn();
   const app = Object.assign(new EventEmitter(), {
     setName: vi.fn(), setAppUserModelId: vi.fn(), setPath: vi.fn(),
@@ -139,12 +142,13 @@ async function boot(options: { trayFails?: boolean; loadFails?: boolean; startup
   vi.doMock('node:fs', () => ({ mkdirSync: vi.fn(), existsSync: () => false, readFileSync: () => 'null' }));
   vi.doMock('electron-updater', () => ({ NsisUpdater: class {} }));
   vi.doMock('../desktop/updater.js', () => ({ UpdateController: TestUpdater }));
+  vi.doMock('../server/windows-foreground.js', () => ({ createWindowsForegroundSource }));
   vi.doMock('../server/runtime.js', () => ({ createHubRuntime, defaultDataDirectory: () => '/fixture/data', DESKTOP_KEY_HEADER: 'x-hub-desktop-key' }));
   vi.spyOn(console, 'error').mockImplementation(() => {});
   await import('../desktop/main.js');
   await turn();
   return {
-    app, backend, calls, dialog, exited, ipc, ipcMain, powerMonitor, windows, trays, sessions, createHubRuntime,
+    app, backend, calls, dialog, exited, ipc, ipcMain, powerMonitor, windows, trays, sessions, createHubRuntime, createWindowsForegroundSource,
     get updater() { return updater; },
     quit: () => applicationMenu[0].submenu![0].click!(),
     locale: (locale: Locale) => onSettingsChanged({ locale }),
@@ -153,10 +157,36 @@ async function boot(options: { trayFails?: boolean; loadFails?: boolean; startup
 
 afterEach(() => {
   vi.restoreAllMocks(); vi.unstubAllGlobals();
-  for (const id of ['electron', 'node:fs', 'electron-updater', '../desktop/updater.js', '../server/runtime.js']) vi.doUnmock(id);
+  for (const id of ['electron', 'node:fs', 'electron-updater', '../desktop/updater.js', '../server/runtime.js', '../server/windows-foreground.js']) vi.doUnmock(id);
+  if (originalResourcesPath) Object.defineProperty(process, 'resourcesPath', originalResourcesPath);
+  else delete (process as unknown as { resourcesPath?: string }).resourcesPath;
 });
 
 describe('Electron lifecycle wiring', () => {
+  it('keeps foreground collection blocked until the session is known unlocked and separates it from Hub visibility', async () => {
+    const host = await boot({ initialSession: 'locked' });
+    expect(host.backend.setAppObservationSessionAvailable).toHaveBeenLastCalledWith(false);
+    host.powerMonitor.emit('unlock-screen');
+    expect(host.backend.setAppObservationSessionAvailable).toHaveBeenLastCalledWith(true);
+    host.windows[0].hide();
+    expect(host.backend.setActivityMode).toHaveBeenLastCalledWith('background');
+    expect(host.backend.setAppObservationSessionAvailable).toHaveBeenLastCalledWith(true);
+    host.windows[0].show(); host.windows[0].emit('blur');
+    expect(host.backend.setActivityMode).toHaveBeenLastCalledWith('foreground');
+    host.powerMonitor.emit('suspend'); host.powerMonitor.emit('unlock-screen');
+    expect(host.backend.setAppObservationSessionAvailable).toHaveBeenLastCalledWith(false);
+    host.powerMonitor.getSystemIdleState.mockReturnValue('active'); host.powerMonitor.emit('resume');
+    expect(host.backend.setAppObservationSessionAvailable).toHaveBeenLastCalledWith(true);
+    host.powerMonitor.emit('lock-screen'); expect(host.backend.setAppObservationSessionAvailable).toHaveBeenLastCalledWith(false);
+  });
+  it('creates one packaged collector and one power subscription even after a lost window', async () => {
+    const host = await boot();
+    expect(host.createWindowsForegroundSource).toHaveBeenCalledOnce();
+    expect(host.createWindowsForegroundSource.mock.calls[0][0].executable.replaceAll('\\', '/')).toBe('/fixture/resources/app-observation/foreground-app.exe');
+    host.windows[0].destroy(); await turn();
+    expect(host.windows).toHaveLength(2); expect(host.createWindowsForegroundSource).toHaveBeenCalledOnce();
+    for (const name of ['lock-screen', 'unlock-screen', 'suspend', 'resume']) expect(host.powerMonitor.listenerCount(name)).toBe(1);
+  });
   it('X keeps the same dirty renderer and runtime; tray/second instance restore it and menus relocalize', async () => {
     const host = await boot();
     const window = host.windows[0]; window.dirty = true;

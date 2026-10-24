@@ -35,6 +35,12 @@ function messageFrom(row: Row): MessageView {
 
 /** Uses the same connection as local projects so an accepted change and its receipt commit together. */
 export class DeviceStore {
+  private profileListeners = new Set<(profileId: string) => void>();
+  onProfileChange(listener: (profileId: string) => void) { this.profileListeners.add(listener); return () => this.profileListeners.delete(listener); }
+  private changed(profileId: string) {
+    // Notifications run after any surrounding SQLite transaction, never inside its write set.
+    if (this.profileListeners.size) queueMicrotask(() => { for (const listener of this.profileListeners) listener(profileId); });
+  }
   constructor(readonly store: Store, readonly clock: () => number = Date.now) {
     store.db.prepare('INSERT OR IGNORE INTO device_installation(singleton,id,name) VALUES(1,?,?)').run(randomUUID(), hostname().slice(0, 80) || 'This computer');
   }
@@ -76,9 +82,11 @@ export class DeviceStore {
       const rename = this.store.db.prepare("SELECT payload FROM device_outbox WHERE profile_id=? AND id='rename' AND kind='rename'").get(id) as Row | undefined;
       if (rename) this.store.db.prepare('UPDATE paired_devices SET name=? WHERE profile_id=? AND id=?').run(JSON.parse(String(rename.payload)).name, id, device.id);
     });
+    this.changed(id);
   }
   setEnabled(id: string, enabled: boolean) {
     this.store.db.prepare('UPDATE relay_profiles SET enabled=?,connection=?,last_error=NULL WHERE id=?').run(Number(enabled), enabled ? 'idle' : 'disabled', id);
+    this.changed(id);
   }
   detach(id: string) {
     this.store.transaction(() => {
@@ -90,8 +98,10 @@ export class DeviceStore {
     });
   }
   setConnection(id: string, connection: ConnectionStatus, error: string | null = null, synced = false) {
+    const previous = this.profileListeners.size ? this.store.db.prepare('SELECT connection FROM relay_profiles WHERE id=?').get(id)?.connection : null;
     this.store.db.prepare('UPDATE relay_profiles SET connection=?,last_error=?,last_sync_at=CASE WHEN ? THEN ? ELSE last_sync_at END WHERE id=?')
       .run(connection, error, Number(synced), this.now(), id);
+    if (connection === 'locked' || connection === 'revoked' || previous === 'locked' || previous === 'revoked') this.changed(id);
   }
   rename(name: string) {
     this.store.transaction(() => {
@@ -114,6 +124,7 @@ export class DeviceStore {
         this.withdrawCachedStatus(profile, device.id);
       }
     }
+    if (devices.some(device => !!device.revokedAt)) this.changed(profile);
   }
   devices(profile: string): DeviceRecord[] {
     return (this.store.db.prepare('SELECT * FROM paired_devices WHERE profile_id=? ORDER BY name,id').all(profile) as Row[])

@@ -7,10 +7,14 @@ import type { RelayConfiguration } from '../../shared/devices.js';
 export const sqlRelayConfiguration: RelayConfiguration = {
   url: 'https://local-relay-test.supabase.co', publishableKey: 'sb_publishable_local_sql_test_only_000000',
 };
-// GovernanceRelay -> versioned RPC mapping, also used for actual SQL integration tests.
-// publishStatus intentionally transports a TEXT JSON string: version equality is exact
-// UTF-8 bytes, not JSONB equivalence. All other structured inputs use strict JSONB DTOs.
+// Explicit versioned channel RPC mapping, also used for actual SQL integration tests.
+// Governance publishStatus and app observation publish transport TEXT JSON strings:
+// retry equality is exact UTF-8 bytes, not JSONB equivalence. Other structured inputs
+// use strict JSONB DTOs.
 const signatures: Record<string, { sql: string; parameters: string[] }> = {
+  hub_app_v1_capability: { sql: 'SELECT public.hub_app_v1_capability($1::text) AS result', parameters: ['p_token'] },
+  hub_app_v1_publish: { sql: 'SELECT public.hub_app_v1_publish($1::text,$2::text) AS result', parameters: ['p_token', 'p_payload'] },
+  hub_app_v1_statuses: { sql: 'SELECT public.hub_app_v1_statuses($1::text) AS result', parameters: ['p_token'] },
   hub_v2_policy: { sql: 'SELECT public.hub_v2_policy($1::text) AS result', parameters: ['p_token'] },
   hub_v2_set_role: { sql: 'SELECT public.hub_v2_set_role($1::text,$2::uuid,$3::text) AS result', parameters: ['p_token', 'p_device_id', 'p_role'] },
   hub_v2_submit_git: { sql: 'SELECT public.hub_v2_submit_git($1::text,$2::jsonb) AS result', parameters: ['p_token', 'p_request'] },
@@ -42,7 +46,7 @@ const signatures: Record<string, { sql: string; parameters: string[] }> = {
  * One instance can serve multiple isolated desktop stores. Always close it after tests.
  * Transport is injected; the production adapter's endpoint restrictions are unchanged.
  */
-export async function createSqlRelayFixture(options: { governance?: boolean } = {}) {
+export async function createSqlRelayFixture(options: { governance?: boolean; includeAppObservation?: boolean } = {}) {
   const db = new PGlite();
   try {
     await db.exec('CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;');
@@ -50,6 +54,11 @@ export async function createSqlRelayFixture(options: { governance?: boolean } = 
     await db.exec(migration);
     if (options.governance !== false) {
       await db.exec(await readFile(fileURLToPath(new URL('../../supabase/migrations/202610200001_device_git_approval.sql', import.meta.url)), 'utf8'));
+      // A v1-only fixture remains v1-only. Normal fixtures include the independent upgrade;
+      // tests of exactly the two original migrations can explicitly opt out.
+      if (options.includeAppObservation !== false) {
+        await db.exec(await readFile(fileURLToPath(new URL('../../supabase/migrations/202610240001_foreground_app.sql', import.meta.url)), 'utf8'));
+      }
     }
   } catch (error) { await db.close(); throw error; }
   async function asRole<T extends Record<string, unknown> = Record<string, unknown>>(role: 'anon' | 'authenticated' | 'postgres', sql: string, parameters: unknown[] = []) {

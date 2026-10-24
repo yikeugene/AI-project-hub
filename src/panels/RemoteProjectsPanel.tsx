@@ -4,7 +4,9 @@ import type { DeviceRecord, DeviceState } from '../../shared/devices';
 import { MEMORY_FIELDS, getMemoryLabels } from '../../shared/types';
 import { deviceApi } from '../api';
 import { canUseNetwork, devicePresence, snapshotKey } from '../device-ui';
-import { formatDate, useDeviceResource, type GovernanceController } from '../hooks';
+import { formatDate, useAppObservation, useDeviceResource, type GovernanceController } from '../hooks';
+import { RemoteAppObservation } from '../components/RemoteAppObservation';
+import { appObservationMessages } from '../locales/app-observation';
 import { RemoteDeviceActivity, RemoteProjectStatus } from '../components/RemoteStatus';
 import type { ComposeTarget } from '../components/MessageComposer';
 import { Button, EmptyState, ErrorNotice, Loading, Notice, PriorityBadge, SectionHeading, StatusBadge } from '../components/ui';
@@ -13,7 +15,10 @@ import { remoteMessages } from '../locales/panels-remote';
 
 /** Remote records never enter ProjectDetail or the local Project/Workspace collection. */
 export function RemoteProjectsPanel({ device, state, governance, onCompose }: { device: DeviceRecord; state: DeviceState; governance: GovernanceController; onCompose: (target: ComposeTarget) => void }) {
-  const locale = useLocale(); const t = useT(remoteMessages); const memoryLabels = getMemoryLabels(locale);
+  const locale = useLocale(); const t = useT(remoteMessages); const appT = useT(appObservationMessages); const memoryLabels = getMemoryLabels(locale);
+  const appObservation = useAppObservation(state.profileId);
+  const appState = appObservation.state?.profileId === state.profileId ? appObservation.state : null;
+  const appStatus = !device.revokedAt && state.paired && state.connection !== 'revoked' && appState?.capability !== 'unsupported' ? appState?.statuses.find(item => item.deviceId === device.id) : undefined;
   const load = useCallback(() => state.profileId ? deviceApi.projects(state.profileId, device.id) : Promise.resolve([]), [state.profileId, device.id]);
   const { data, loading, error, reload } = useDeviceResource(load);
   const [projectId, setProjectId] = useState('');
@@ -23,7 +28,7 @@ export function RemoteProjectsPanel({ device, state, governance, onCompose }: { 
   const canSend = canUseNetwork(state) && !device.revokedAt;
   const status = !device.revokedAt && state.paired ? governance.state?.statuses.find(item => item.deviceId === device.id) : undefined;
   return <div className="remote-projects-panel">
-    <section className="panel remote-device-heading"><SectionHeading title={device.name} subtitle={t('ownerDevice', { id: device.id })}><span className="readonly-label"><Eye size={15} />{t('remoteReadonly')}</span></SectionHeading><div className="device-toolbar"><span className="field-hint">{t('presence', { presence: devicePresence(device, undefined, locale), date: formatDate(device.lastSeenAt, true, locale) })}</span><Button icon={MessageSquare} disabled={!canSend} onClick={() => onCompose({ toDeviceId: device.id })}>{t('send')}</Button><Button icon={RefreshCw} onClick={() => { void Promise.all([reload(), governance.reload()]); }} disabled={loading}>{t('reload')}</Button></div><Notice>{t('boundary')}{' '}{!state.enabled || state.connection !== 'online' ? t('offline') : t('onlineHint')}</Notice><ErrorNotice message={governance.error || governance.state?.error || ''} /><RemoteDeviceActivity status={status} /></section>
+    <section className="panel remote-device-heading"><SectionHeading title={device.name} subtitle={t('ownerDevice', { id: device.id })}><span className="readonly-label"><Eye size={15} />{t('remoteReadonly')}</span></SectionHeading><div className="device-toolbar"><span className="field-hint">{t('presence', { presence: devicePresence(device, undefined, locale), date: formatDate(device.lastSeenAt, true, locale) })}</span><Button icon={MessageSquare} disabled={!canSend} onClick={() => onCompose({ toDeviceId: device.id })}>{t('send')}</Button><Button icon={RefreshCw} onClick={() => { void Promise.all([reload(), governance.reload(), appObservation.reload()]); }} disabled={loading}>{t('reload')}</Button></div><Notice>{t('boundary')}{' '}{!state.enabled || state.connection !== 'online' ? t('offline') : t('onlineHint')}</Notice><ErrorNotice message={governance.error || governance.state?.error || ''} /><RemoteDeviceActivity status={status} /><RemoteAppObservation status={appStatus} />{appObservation.error && <ErrorNotice message={appT('readError')} />}{appState?.capability === 'unsupported' && <Notice warning>{appT('upgradeRequired')}</Notice>}</section>
     <ErrorNotice message={error ? t('cacheError', { error }) : ''} />
     {loading ? <section className="panel"><Loading label={t('loading')} /></section> : !selected?.project ? <section className="panel"><EmptyState icon={FolderKanban} title={t('emptyTitle')} description={t('emptyDescription')} /></section> : <div className="remote-project-layout"><aside className="panel remote-project-list"><h2>{t('sharedProjects')}</h2>{snapshots.map(snapshot => <button key={snapshotKey(snapshot)} className={`remote-project-item ${snapshot.projectId === selected.projectId ? 'selected' : ''}`} onClick={() => setProjectId(snapshot.projectId)} aria-pressed={snapshot.projectId === selected.projectId}><strong>{snapshot.project!.name}</strong><span>{t('summaryVersion', { version: snapshot.version })}</span><small>{t('published', { date: formatDate(snapshot.publishedAt, true, locale) })}</small></button>)}</aside>
       <section className="panel remote-project-detail" aria-label={t('summaryLabel')}><SectionHeading title={selected.project.name} subtitle={t('owner', { name: device.name })}><span className="readonly-label"><Eye size={14} />{t('readonlyCache')}</span></SectionHeading><div className="remote-project-meta"><StatusBadge status={selected.project.status} /><PriorityBadge priority={selected.project.priority} /><span>{selected.project.stage || t('noStage')}</span></div>

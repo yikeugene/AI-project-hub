@@ -20,12 +20,14 @@ import type { GitApprovalService } from './git-approvals.js';
 import type { GovernanceService } from './governance.js';
 import { MAX_MARKDOWN_BYTES } from '../shared/markdown-import.js';
 import { markdownImportRouter } from './markdown-import.js';
+import { appObservationRouter, type AppObservationService } from './app-observation.js';
 
 export interface AppOptions {
   store: Store; dataDir: string;
   deviceService?: DeviceService;
   gitService?: GitApprovalService;
   governanceService?: GovernanceService;
+  appObservationService?: AppObservationService;
   onActivity?: (kind: 'scan', state: 'running' | 'succeeded' | 'failed') => void;
   readGit?: (path: string) => Promise<GitSnapshot>;
   capabilities?: () => Promise<Capabilities>;
@@ -220,6 +222,7 @@ export function createApp(options: AppOptions) {
   });
   app.use('/api/markdown-import', markdownImportRouter(store, options.deviceService));
   if (options.deviceService) app.use('/api', deviceRouter(options.deviceService));
+  if (options.appObservationService) app.use('/api', appObservationRouter(options.appObservationService));
   if (options.gitService && options.governanceService) app.use('/api', gitRouter(options.gitService, options.governanceService));
   app.use('/api', (_req, res) => { res.status(404).json(errorResponse('request.notFound', locale())); });
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {

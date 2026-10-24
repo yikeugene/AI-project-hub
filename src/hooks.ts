@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, deviceApi, errorMessage, governanceApi } from './api';
+import { api, appObservationApi, deviceApi, errorMessage, governanceApi } from './api';
+import { APP_OBSERVATION_INTERVAL_MS, type AppObservationState } from '../shared/app-observation';
+import { appObservationMessages } from './locales/app-observation';
 import type { GovernanceState } from '../shared/governance';
 import type { DeviceState } from '../shared/devices';
 import type { Workspace, WorkspaceFocus } from '../shared/types';
@@ -191,6 +193,58 @@ export function useGovernance(profileId: string | null) {
   return { state: snapshot?.scope === profileId ? snapshot.state : null, loading, error: errorMessage(error, locale), reload, update };
 }
 export type GovernanceController = ReturnType<typeof useGovernance>;
+
+/** Independent local-cache reads only: polling never refreshes, collects, or opts into sharing. */
+export function useAppObservation(profileId: string | null) {
+  const locale = useLocale();
+  const [snapshot, setSnapshot] = useState<{ scope: string; state: AppObservationState } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const sequence = useRef(0);
+  const scope = useRef(profileId); scope.current = profileId;
+  const mutation = useRef(false);
+  const alive = useRef(true);
+  const reload = useCallback(async () => {
+    if (mutation.current || !alive.current || scope.current !== profileId) return;
+    const current = ++sequence.current;
+    if (!profileId) { setSnapshot(null); setFailed(false); setLoading(false); return; }
+    const valid = () => alive.current && current === sequence.current && scope.current === profileId;
+    try {
+      const state = await appObservationApi.state(profileId);
+      if (state.profileId !== profileId) throw new Error('scope');
+      if (valid()) { setSnapshot({ scope: profileId, state }); setFailed(false); }
+    } catch {
+      // Preserve same-scope consent for local withdrawal after a read failure; never render diagnostics.
+      if (valid()) setFailed(true);
+    } finally { if (valid()) setLoading(false); }
+  }, [profileId]);
+  const update = useCallback(async (operation: () => Promise<AppObservationState>) => {
+    if (mutation.current || !alive.current || scope.current !== profileId || !profileId) throw new LocalizedError(appObservationMessages, 'actionError');
+    mutation.current = true; const current = ++sequence.current;
+    const valid = () => alive.current && current === sequence.current && scope.current === profileId;
+    try {
+      const state = await operation();
+      if (state.profileId !== profileId) throw new LocalizedError(appObservationMessages, 'conflict');
+      if (valid()) { setSnapshot({ scope: profileId, state }); setFailed(false); setLoading(false); }
+      return state;
+    } catch (error) {
+      mutation.current = false;
+      if (valid()) await reload();
+      throw error;
+    } finally { mutation.current = false; }
+  }, [profileId, reload]);
+  useEffect(() => {
+    alive.current = true; setSnapshot(null); setFailed(false); setLoading(true);
+    void reload();
+    const timer = window.setInterval(() => { if (!document.hidden) void reload(); }, APP_OBSERVATION_INTERVAL_MS);
+    const visible = () => { if (!document.hidden) void reload(); };
+    document.addEventListener('visibilitychange', visible);
+    return () => { alive.current = false; sequence.current++; window.clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
+  }, [reload]);
+  return { state: snapshot?.scope === profileId ? snapshot.state : null, loading,
+    error: failed ? translate(appObservationMessages, locale, 'readError') : '', reload, update };
+}
+export type AppObservationController = ReturnType<typeof useAppObservation>;
 
 /** A clock only updates labels/expiry checks; it never performs or approves an operation. */
 export function useNow(interval = 15_000) {

@@ -1,5 +1,6 @@
 import type { DeviceRecord, ManifestEntry, MessageDecision, MessageReceipt, OutboundMessage, PairAttempt, PairResult, RelayConfiguration, RelayMessage, RemoteSnapshot, SnapshotPublication } from '../shared/devices.js';
 import type { GovernanceRelay } from '../shared/governance.js';
+import type { AppObservationRelay } from '../shared/app-observation.js';
 
 export interface SecureCodec {
   available(): boolean;
@@ -9,6 +10,8 @@ export interface SecureCodec {
 export interface RelayClient {
   /** Absent on legacy/custom relays. Capability failure must never bypass Git approval. */
   governance?: GovernanceRelay;
+  /** Independent optional channel; never extends the legacy governance/status wire DTOs. */
+  appObservation?: AppObservationRelay;
   pair(input: PairAttempt, signal?: AbortSignal): Promise<PairResult>;
   listDevices(token: string, signal?: AbortSignal): Promise<DeviceRecord[]>;
   renameDevice(token: string, name: string, signal?: AbortSignal): Promise<void>;

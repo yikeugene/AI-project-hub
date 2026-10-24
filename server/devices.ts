@@ -14,9 +14,12 @@ import { RelayError, type RelayFactory, type SecureCodec } from './relay.js';
 import { createSupabaseRelay, validateRelayConfiguration } from './supabase-relay.js';
 import { SyncWorker, syncError, type SyncSession } from './sync.js';
 import type { GovernanceRelay } from '../shared/governance.js';
+import type { AppObservationRelay } from '../shared/app-observation.js';
 
 export type AuthorizedGovernance = { [K in keyof GovernanceRelay]: GovernanceRelay[K] extends (token: string, ...args: infer A) => infer R ? (...args: A) => R : never };
 export interface GovernanceContext { profileId: string; networkId: string; deviceId: string; assertCurrent(): void }
+export type AuthorizedAppObservation = { [K in keyof AppObservationRelay]: AppObservationRelay[K] extends (token: string, ...args: infer A) => infer R ? (...args: A) => R : never };
+export interface AppObservationContext extends GovernanceContext { signal: AbortSignal }
 
 const uuid = z.string().uuid();
 const confirmation = z.object({ confirm: z.literal(true) }).strict();
@@ -79,6 +82,29 @@ export class DeviceService {
         statuses: () => checked(() => governance.statuses(token, signal)),
       };
       return action(client, { profileId: profile.id, networkId: profile.networkId!, deviceId: profile.deviceId, assertCurrent });
+    });
+  }
+  onProfileChange(listener: (profileId: string) => void) { return this.repository.onProfileChange(listener); }
+  appObservationReady(profileId: string): boolean {
+    const profile = this.repository.profile(profileId);
+    return !this.closing && this.available() && !!profile?.attached && profile.enabled && !!profile.networkId
+      && !profile.pairingPending && profile.connection !== 'locked' && !this.revoked(profile);
+  }
+  async withAppObservation<T>(profileId: string, action: (client: AuthorizedAppObservation, context: AppObservationContext) => Promise<T>, cancellation?: AbortSignal): Promise<T> {
+    return this.remote(profileId, async (session, ownSignal) => {
+      const signal = cancellation ? AbortSignal.any([ownSignal, cancellation]) : ownSignal;
+      const { profile, token } = session, channel = session.relay.appObservation;
+      const assertCurrent = () => {
+        if (signal.aborted || !this.current(session) || !this.appObservationReady(profileId)) throw appError(409, 'proposal.connectionChanged');
+      };
+      const checked = async <V>(operation: () => Promise<V>) => { assertCurrent(); const result = await operation(); assertCurrent(); return result; };
+      const unavailable = () => { throw appError(409, 'governance.upgrade'); };
+      const client: AuthorizedAppObservation = {
+        capability: () => checked(() => channel ? channel.capability(token, signal) : Promise.resolve(null)),
+        publish: value => checked(() => channel ? channel.publish(token, value, signal) : unavailable()),
+        statuses: () => checked(() => channel ? channel.statuses(token, signal) : unavailable()),
+      };
+      return action(client, { profileId, networkId: profile.networkId!, deviceId: profile.deviceId, signal, assertCurrent });
     });
   }
   private locale() { return this.repository.store.getSettings().locale; }

@@ -7,6 +7,7 @@ import express, { type Express } from 'express';
 import { Store } from './db.js';
 import { createApp, type AppOptions } from './app.js';
 import { DeviceService, type DeviceOptions } from './devices.js';
+import { AppObservationService, type AppObservationOptions } from './app-observation.js';
 import { appError, errorResponse } from './validation.js';
 import { coreTranslator } from '../shared/locales/core.js';
 import { GovernanceService } from './governance.js';
@@ -28,7 +29,8 @@ export interface RuntimeOptions {
   mode?: 'web' | 'desktop';
   desktopSecret?: string;
   enablePolling?: boolean;
-  appOptions?: Omit<AppOptions, 'store' | 'dataDir' | 'mode' | 'deviceService' | 'gitService' | 'governanceService'>;
+  appOptions?: Omit<AppOptions, 'store' | 'dataDir' | 'mode' | 'deviceService' | 'gitService' | 'governanceService' | 'appObservationService'>;
+  appObservationOptions?: AppObservationOptions;
   deviceOptions?: Omit<DeviceOptions, 'mode'> & { enablePolling?: boolean };
   gitEngine?: Partial<GitEngine>;
   /** Development-only middleware; desktop builds never import Vite. */
@@ -60,11 +62,16 @@ export async function createHubRuntime(options: RuntimeOptions) {
   }
   const devices = new DeviceService(store, { ...options.deviceOptions, mode });
   const governance = new GovernanceService(store, devices);
+  const appObservation = new AppObservationService(store, devices, options.appObservationOptions);
   const git = new GitApprovalService(store, devices, governance, options.gitEngine);
   governance.onRefresh((client, context) => git.sync(client, context));
-  devices.onSynced(async profileId => { await governance.refresh(profileId); });
+  devices.onSynced(async profileId => {
+    // Optional observation traffic is tracked independently and must not delay existing governance/Git work.
+    void appObservation.refresh(profileId).catch(() => {});
+    await governance.refresh(profileId);
+  });
   const { app, refreshAll, waitForIdle } = createApp({ ...options.appOptions, store, dataDir, mode, deviceService: devices,
-    gitService: git, governanceService: governance,
+    gitService: git, governanceService: governance, appObservationService: appObservation,
     onActivity: (kind, state) => { governance.record(kind, state); options.appOptions?.onActivity?.(kind, state); } });
   outer.use(app);
   const server = createServer(outer);
@@ -84,6 +91,7 @@ export async function createHubRuntime(options: RuntimeOptions) {
       server.once('error', failed); server.once('listening', ready); server.listen(port, '127.0.0.1');
     });
   } catch (error) {
+    await appObservation.stop();
     await git.stop();
     await governance.stop();
     await devices.stop();
@@ -112,6 +120,7 @@ export async function createHubRuntime(options: RuntimeOptions) {
     closing = (async () => {
       // server.close drains all HTTP work, not only Git observations.
       const drained = new Promise<void>((done, fail) => server.close(error => error ? fail(error) : done()));
+      await appObservation.stop();
       await git.stop();
       await governance.stop();
       await devices.stop();
@@ -128,6 +137,7 @@ export async function createHubRuntime(options: RuntimeOptions) {
     void devices.syncAll().catch(() => {});
     void refreshAll().catch(() => {});
   }
-  return { origin, port: actualPort, dataDir, store, devices, governance, git, refreshAll, setActivityMode, resumed, stop };
+  function setAppObservationSessionAvailable(available: boolean) { if (!closing) appObservation.setSessionAvailable(available); }
+  return { origin, port: actualPort, dataDir, store, devices, governance, appObservation, git, refreshAll, setActivityMode, setAppObservationSessionAvailable, resumed, stop };
 }
 export type HubRuntime = Awaited<ReturnType<typeof createHubRuntime>>;

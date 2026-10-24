@@ -164,6 +164,12 @@ async function run() {
   assert.equal(updater.releaseUrl, source ? `https://github.com/${source.owner}/${source.repo}/releases/latest` : null);
   await page.screenshot({ path: join(work, 'portable-window-en.png') });
   checked('Portable extraction, isolated data, English UI, session protection and unchanged native bridge');
+  const observation = await page.evaluate(async () => (await fetch('/api/app-observation')).json());
+  assert.equal(observation.policy.enabled, false); assert.equal(observation.local, null); assert.deepEqual(observation.statuses, []);
+  assert.equal(observation.collectorAvailable, true, 'The extracted package must contain its trusted native collector.');
+  const helper = await nativeEvaluate(`(() => { const fs = require('node:fs'), path = require('node:path'); const file = path.join(process.resourcesPath, 'app-observation', 'foreground-app.exe'); return { resources: process.resourcesPath, present: fs.lstatSync(file).isFile() && !fs.lstatSync(file).isSymbolicLink() }; })()`);
+  assert.equal(helper.present, true); report.appObservationResources = helper.resources;
+  checked('Portable extraction includes the owned foreground helper while app sharing stays off and exposes no observed names');
 
   await page.locator('.main-nav').getByRole('button', { name: 'Workspace settings', exact: true }).click();
   const roots = page.locator('.settings-form textarea');

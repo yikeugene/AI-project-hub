@@ -2,17 +2,17 @@
 
 [English](README.md) · **繁體中文**
 
-**下載 Windows x64 v0.7.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe)
+**下載 Windows x64 v0.8.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe)
 
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint、Git 觀測與逐次審批的 Git 操作，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
-**v0.7.0 新增：** 本機專案記憶的填寫 Prompt 與 Markdown 匯入，先預覽及套用草稿，再另行儲存；Git 提供更清楚的診斷，以及離線／解除配對後的本機恢復。詳見[版本說明](docs/RELEASE-0.7.0.md)。
+**v0.8.0 新增：** 獨立、預設關閉的每群組前景 App 分享，顯示 Windows 最後回報使用中的程式，包含原生 helper、明確同意與撤回控制。詳見[版本說明](docs/RELEASE-0.8.0.md)。
 
 **v0.4.0 引入：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。Git 審批需依文件套用 v2 relay 遷移並指定管理員。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
 
-**升級注意：** v0.7.0 沿用 v0.6.0 引入的 **schema v5**，從 v0.6.0 升級沒有新增遷移；更早版本會升級至 v5。升級前請完全退出 Hub 並備份整個資料目錄；v0.6.0 之前的舊版無法開啟 schema v5 資料庫，回退須還原相容的升級前備份。
+**升級注意：** v0.8.0 將本機 SQLite 升級至 **schema v6**。升級前請完全退出 Hub 並備份整個資料目錄；舊版無法開啟 v6 資料庫，回退須還原相容備份。可選的前景 App 分享另外需要手動雲端遷移。
 
 **Markdown 匯入：** 匯出摘要經差異預覽與明確確認後，只更新對應本機專案中非空的記憶欄位及下一步；缺少／空白欄位保留原值，不需要 AI API 或新增檔案權限。詳見 [Markdown 匯入與 Prompt 說明](docs/MARKDOWN-IMPORT.md)。
 
@@ -28,16 +28,16 @@
 
 ## 取得 Windows 桌面版
 
-透過下方連結直接下載 **v0.7.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
+透過下方連結直接下載 **v0.8.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
 執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
 | 下載 | 用途 |
 | --- | --- |
-| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
-| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.7.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/SHA256SUMS.txt)
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.8.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/SHA256SUMS.txt)
 
 v0.4.0 已設定正式 GitHub 更新來源。從 v0.3.0 升級仍需手動下載本版，因舊版未設定更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
@@ -53,7 +53,7 @@ Git 檢視與經批准的 Git 操作需要 Git；沒有 Git 仍可使用專案�
 4. **儲存 checkpoint。** 在專案記憶記錄目前進度、決策與已知問題。
 5. **繼續工作。** 工作台結合已記錄脈絡、Git 事實與可解釋的建議；commit 數量不是完成百分比。
 
-正式工作區不會預填示範專案。**v0.7.0 使用 v0.6.0 引入的本機 SQLite schema 第 5 版。** 升級前請備份；v0.6.0 之前的舊版程式無法開啟 schema v5 資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
+正式工作區不會預填示範專案。**v0.8.0 使用本機 SQLite schema 第 6 版。** 升級前請備份；舊版程式無法開啟 v6 資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
 
 ## AI 交接：複製、貼上、審閱
 
@@ -145,11 +145,15 @@ Supabase 整合**預設停用**。它讓已配對的桌面 App 交換選定專�
 
 一般邀請只建立 **member**，重新配對也不繼承原角色。成員不能自行升權或撤銷設備；只有有效 **admin** 可管理角色／撤銷設備，或決定分派給自己的 Git 申請，且禁止移除最後一位有效管理員。
 
-可選的活動、Git 摘要與手動任務計數**預設全部關閉**，已分享的專案也不例外。請分別預覽並啟用各類資料。取消基本專案分享，也會清除該專案的附加狀態分享選項；重新分享不會偷偷重新勾選。接收端觀察到撤回後也會失效化舊附加快取。任務 `doing` 是人工記錄，不代表程式真的正在執行；不收集 CPU、記憶體或其他 App 活動。
+可選的 HelpTool 自身活動、Git 摘要與手動任務計數**預設全部關閉**，已分享專案也不例外。請分別預覽及啟用。取消基本專案分享會清除該專案的 Git／任務附加選項；重新分享不會自動重新勾選。任務 doing 是人工記錄，不代表程式真的在執行；HelpTool 自身前景／背景狀態也不是其他 App 的名稱。
+
+**v0.8.0 新增獨立、預設關閉的每群組前景 App 分享。** 只分享當下前景程式名稱與觀察時間，不讀取標題、文件、網址、輸入或程序清單，也不傳送 PID／完整路徑。預覽或既有活動同意不會啟動採集；本機名稱只留在有限記憶體，雲端每設備只保留一筆最新狀態。停止分享、暫停、憑證失效、鎖屏／睡眠與退出會取消採集；此選項獨立於專案分享。
+
+啟用新通道前，已有 v2 後端只需另外套用 supabase/migrations/202610240001_foreground_app.sql；不要重跑既有 baseline。缺少新遷移只停用新功能，原有 v2 功能仍可用。詳見[設定、遷移與隱私界線](docs/APP-OBSERVATION.md)；本版不會自動部署 Supabase。
 
 訊息會先持久化，runtime 運作且可連線時再重試，包括縮至系統匣時。**已送達不等於已套用。** 套用記憶變更請求需要即時來源授權與相符的本機修訂版本，不能沿用舊的離線授權。完全退出後停止收發，後端可保留待接收訊息。「最後看到」／「最後成功同步」時間不證明過期或離線電腦目前正在運作。
 
-**傳輸使用 HTTPS／TLS，但不是端對端加密。** Supabase 管理方可以讀取已分享內容、審批摘要與訊息。暫停同步不會撤銷裝置或刪除雲端資料，撤銷也無法取回已被保存的副本。Supabase 免費方案有配額及閒置限制。
+**傳輸使用 HTTPS／TLS，但不是端對端加密。** Supabase 管理方可以讀取已分享內容、審批摘要、訊息及另行同意分享的前景 App 名稱。暫停同步不會撤銷裝置或刪除雲端資料，撤銷也無法取回已被保存的副本。Supabase 免費方案有配額及閒置限制。
 
 啟用前請閱讀[多設備設定與限制](docs/MULTI-DEVICE.md)。本機 SQL／HTTP 測試不代表你的真實 Supabase 部署或兩台實體 Windows 電腦已完成驗證。未設定雲端時，本機專案規劃、任務、交接與唯讀 Git 仍可使用；經審批的 Git 變更則需要升級後的 relay。
 
@@ -188,7 +192,7 @@ npm run test:desktop
 
 `npm run test:ui` **只建立 UI fixtures**，包括範例儲存庫及 `.local/verification/hub.sqlite`。它不是 UI 測試執行器，也不會啟動或驗證 App。
 
-v0.7.0 驗證涵蓋 37 個測試檔／650 個案例、40 項打包桌面檢查、6 項本機記憶補充檢查、9 項打包 Git 檢查及 4 組免安裝生命週期檢查，沒有跳過項目。首輪執行停頓造成逾時後，Git 測試檔與免安裝檢查重跑通過，所有案例均取得通過結果；更新中繼資料已核對實際安裝包。詳見 [v0.7.0 本版驗證](docs/RELEASE-0.7.0.md#verification--驗證)及[驗證界線](docs/GIT-SAFETY.md#verification-scope)。尚未執行 NSIS 安裝／移除及完整線上更新安裝；Live Supabase、真正 PostgreSQL 多連線競爭及兩台實體電腦也未驗證。自行建置仍須重新驗證。
+v0.8.0 通過 43 個測試檔／770 個案例、40 項打包桌面檢查、9 項打包 Git 檢查、7 項新分享流程檢查、5 組免安裝檢查，以及原生受控視窗與 2,194 個 Unicode 名稱案例。完整測試結果與各層證據界線見 [v0.8.0 本版驗證](docs/RELEASE-0.8.0.md#verification--驗證)。尚未部署真實 Supabase，亦未驗證兩台實體電腦、實體鎖屏／睡眠／喚醒、NSIS 安裝／移除或完整更新安裝。自行建置仍須重新驗證。
 
 ### 可選的 web 開發模式
 

@@ -990,7 +990,7 @@ input:disabled, textarea:disabled, select:disabled { background: #f5f7fb; }
 /* Approved Git keeps the existing workbench typography and restrained surfaces. */
 .git-panel, .git-requests, .git-review, .git-preview, .git-approval-panel { min-width: 0; }
 .git-panel > .section-heading, .git-requests > .section-heading { flex-wrap: wrap; gap: 12px; }
-.git-panel .button, .git-approval-panel .button, .governance-settings .button, .status-sharing-settings .button { white-space: normal; }
+.git-panel .button, .git-approval-panel .button, .governance-settings .button, .status-sharing-settings .button, .app-observation-settings .button { white-space: normal; }
 .git-panel .section-actions, .git-approval-panel .section-actions, .governance-settings .section-actions { flex-shrink: 1; }
 .git-workflow { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #383267; font-size: 13px; }
 .git-workflow svg { flex-shrink: 0; }
@@ -1053,12 +1053,16 @@ input:disabled, textarea:disabled, select:disabled { background: #f5f7fb; }
 .governance-role-list > li > div { flex: 1; min-width: 0; }
 .governance-role-list strong, .status-project-fields strong { font-size: 13px; overflow-wrap: anywhere; }
 .governance-role-list .device-id { display: block; margin-top: 6px; overflow-wrap: anywhere; }
-.status-sharing-settings h3 { font-size: 13px; margin-top: 24px; }
+.status-sharing-settings h3, .app-observation-settings h3 { font-size: 13px; margin-top: 24px; }
+.app-observation-settings > .notice, .app-observation-settings > .device-toolbar { margin-block: 14px; }
+.app-observation-preview-fields .field { margin-bottom: 16px; }
+.app-observation-preview-fields .status-text-list dd { text-align: left; }
+.app-observation-settings > .field-hint, .app-observation-preview-fields p { max-width: 78ch; }
 .status-project-fields > li { padding: 14px 0; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 16px; align-items: start; }
 .status-project-fields > li > div > .field-hint { display: block; margin-top: 5px; }
 .status-project-fields fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 9px; }
-.remote-device-activity, .remote-project-status { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 19px; min-width: 0; }
-.remote-device-activity h3, .remote-project-status h3 { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.remote-device-activity, .remote-project-status, .remote-app-observation { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 19px; min-width: 0; }
+.remote-device-activity h3, .remote-project-status h3, .remote-app-observation h3 { font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .remote-device-activity h4 { font-size: 12px; margin: 18px 0 8px; }
 .status-receipt { margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 15px; font-size: 12px; color: var(--muted); }
 .status-receipt > .field-hint { width: 100%; margin: 0; }

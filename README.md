@@ -2,17 +2,17 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
-**Download v0.7.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe)
+**Download v0.8.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe)
 
 A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, Git observations, and individually approved Git actions in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
 
-**New in v0.7.0:** Local project memory gains a fill-in prompt and Markdown import with draft preview and a separate save step. Git adds clearer diagnostics and local recovery while offline or unpaired. See the [release notes](docs/RELEASE-0.7.0.md).
+**New in v0.8.0:** Optional current-app sharing reports the last observed Windows foreground application through a separate, default-off per-group setting. Includes the native helper, explicit consent and withdrawal controls. See the [release notes](docs/RELEASE-0.8.0.md).
 
 **Introduced in v0.4.0:** approved Git operations, administrator roles, optional device status, close-to-tray behavior, and a configured GitHub update source. Git approvals require you to upgrade your own relay using the documented v2 migration and designate an administrator.
 
 **The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
 
-**Upgrade notice:** v0.7.0 retains **schema v5**, introduced in v0.6.0. There is no new migration from v0.6.0; earlier versions migrate to v5. Quit Hub completely and back up the full data directory before upgrading. Apps older than v0.6.0 cannot open a schema-v5 database; reverting requires a compatible pre-upgrade backup.
+**Upgrade notice:** v0.8.0 migrates local SQLite to **schema v6**. Quit Hub completely and back up the full data directory before upgrading. Earlier apps cannot open v6 databases; reverting requires a compatible pre-upgrade backup. The optional current-app channel also requires a separate manual cloud migration.
 
 **Markdown import:** Exported summaries can update only the matching local project’s nonblank memory fields and next action after a diff preview and confirmation. Missing/blank fields preserve local content; no AI API or new filesystem permission is required. See the [guide](docs/MARKDOWN-IMPORT.md).
 
@@ -28,16 +28,16 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 ## Get the Windows app
 
-Download **v0.7.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
+Download **v0.8.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
 
 Run the installer to install for your Windows user, or download and double-click the portable executable. GitHub's **Source code (zip)** and **Source code (tar.gz)** archives are for developers.
 
 | Download | Use |
 | --- | --- |
-| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
-| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/AI-Project-Hub-0.7.0-portable-x64.exe) | Run directly without an installer. |
+| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
+| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe) | Run directly without an installer. |
 
-[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.7.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.7.0/SHA256SUMS.txt)
+[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.8.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/SHA256SUMS.txt)
 
 Version 0.4.0 configures the official GitHub update source. Users upgrading from 0.3.0 must download this release manually because that version has no configured updater. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
 
@@ -53,7 +53,7 @@ Git is needed for Git views and approved Git operations; projects, memory, tasks
 4. **Save a checkpoint.** Use project memory for the current state, decisions, and known issues.
 5. **Continue work.** The workbench combines recorded context with Git facts and explainable suggestions. Commit counts are not completion percentages.
 
-Your normal workspace is not seeded with demo projects. **Version 0.7.0 uses local SQLite schema version 5, introduced in v0.6.0.** Back up before upgrading: apps older than v0.6.0 cannot open a schema-v5 database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
+Your normal workspace is not seeded with demo projects. **Version 0.8.0 uses local SQLite schema version 6.** Back up before upgrading: earlier apps cannot open a schema-v6 database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
 
 ## AI handoffs: copy, paste, review
 
@@ -145,11 +145,15 @@ The Supabase integration is **disabled by default**. It provides selected projec
 
 Normal invitations create **members**, including after re-pairing; members cannot promote themselves or revoke devices. Only active administrators manage roles/revocations or decide assigned Git requests, and the last active administrator is protected.
 
-Optional activity, Git-summary, and manual-task-count sharing is **off by default**, even for already-shared projects. Preview and enable each category separately. Removing the base project share also clears its optional status-sharing choices; re-sharing does not silently opt them back in. Cached extensions are invalidated when an unshare is observed. Task `doing` counts are manually recorded work, not proof of a running process; no CPU, memory, or unrelated application activity is collected.
+Optional **HelpTool activity**, Git-summary, and manual-task-count sharing is **off by default**, even for already-shared projects. Preview and enable each category separately. Removing the base project share clears its per-project Git/task status-sharing choices; re-sharing does not silently opt them back in. Cached extensions are invalidated when an unshare is observed. Task `doing` counts are manually recorded work, not proof of a running process. HelpTool's own foreground/background mode is not the name of the application currently in use.
+
+Version 0.8.0 adds a **separate, default-off Windows current-app option per group**. It shares only the foreground application's bounded name and source observation time, not window titles, documents, URLs, input, paths, PIDs, CPU/memory readings, or a running-process list. Neither existing activity consent nor a preview starts this collection. Names are kept only in bounded local memory; the independent cloud channel stores one latest value per device, not a usage history. Pause, withdrawal, credential loss, lock/suspend and exit invalidate capture; late results cannot revive it. Opting out of a project does not toggle these independent app-level permissions.
+
+For this optional channel, apply **only** `supabase/migrations/202610240001_foreground_app.sql` after the two base migrations above. Old v2 clients/SQL remain compatible; a missing app-channel migration disables only this new feature, with a clear update-required notice. See [current-app setup, privacy and limitations](docs/APP-OBSERVATION.md). The release does not deploy anything to Supabase; follow the manual setup guide before enabling this option.
 
 Messages are persisted and retried while the runtime is running and connected, including when hidden in the tray. **Delivered does not mean applied.** Applying a memory-change request requires fresh source authorization and a matching local revision; an old offline authorization is not sufficient. Explicit Quit stops sending and receiving; the backend can retain pending messages. Last-seen/last-successful-sync timestamps are not proof that a stale or offline computer is currently running.
 
-**HTTPS/TLS is used, but this is not end-to-end encrypted.** The Supabase administrator can read shared content, approval summaries, and messages. Pausing sync does not revoke devices or erase cloud data, and revocation cannot retrieve copies already saved elsewhere. Supabase's free tier has quotas and inactivity limits.
+**HTTPS/TLS is used, but this is not end-to-end encrypted.** The Supabase administrator can read shared content, approval summaries, messages, and any explicitly shared current-app names. Pausing sync does not revoke devices or erase cloud data, and revocation cannot retrieve copies already saved elsewhere. Supabase's free tier has quotas and inactivity limits.
 
 See [multi-device setup and limitations](docs/MULTI-DEVICE.md) before enabling it. Local SQL/HTTP tests are not proof that your live Supabase deployment or two physical Windows computers have been verified. Local project planning, tasks, handoffs, and read-only Git remain available without cloud setup; approved Git changes require the upgraded relay.
 
@@ -188,7 +192,7 @@ npm run test:desktop
 
 `npm run test:ui` **only creates UI fixtures**, including sample repositories and `.local/verification/hub.sqlite`. It is not a UI test runner and does not launch or verify the app.
 
-The v0.7.0 release validation covers 650 tests across 37 files, 40 packaged desktop checks, 6 additional local-memory checks, 9 packaged Git checks, and 4 portable lifecycle groups, with no skipped checks. The Git test file and portable checks passed on rerun after execution pauses caused deadline failures; every test case has a passing result. Installer update metadata matches the built installer. See the [v0.7.0 release verification](docs/RELEASE-0.7.0.md#verification--驗證) for build and test results and the [verification boundaries](docs/GIT-SAFETY.md#verification-scope). NSIS installation/uninstallation, end-to-end update installation, live Supabase, true multi-connection PostgreSQL races, and two physical desktops remain unverified. Rerun the checks on your own builds.
+The v0.8.0 release passed all 770 tests across 43 files, 40 packaged desktop checks, 9 packaged Git checks, 7 packaged app-sharing checks, 5 portable lifecycle groups, and the owned-window native test with 2,194 Unicode-name cases. See the [v0.8.0 release verification](docs/RELEASE-0.8.0.md#verification--驗證) for the full test-suite result and precise evidence boundaries. Live Supabase, two physical desktops, physical lock/suspend/wake, NSIS installation/uninstallation and end-to-end update installation remain outside this validation. Rerun checks on your own builds.
 
 ### Optional web development mode
 

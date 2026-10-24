@@ -41,7 +41,7 @@ const decide = (deviceToken: string, r: GitApprovalSubmission, overrides: Record
 const consume = (deviceToken: string, r: GitApprovalSubmission, executionId = randomUUID()) => f.rpc('hub_v2_consume_git', { p_token: deviceToken, p_id: r.id, p_digest: r.digest, p_execution_id: executionId });
 const publish = (deviceToken: string, value: unknown) => f.rpc('hub_v2_publish_status', { p_token: deviceToken, p_status: JSON.stringify(value) });
 
-beforeAll(async () => { f = await createSqlRelayFixture(); }, 60_000);
+beforeAll(async () => { f = await createSqlRelayFixture({ includeAppObservation: false }); }, 60_000);
 afterAll(async () => { await f?.close(); });
 beforeEach(async () => { await f.reset(); });
 

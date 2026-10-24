@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import releaseSource from './release-source.cjs';
 import { buildGitTools } from './build-git-tools.mjs';
+import { buildForegroundApp } from './build-foreground-app.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stage = join(root, '.desktop-build', 'app');
@@ -13,6 +14,7 @@ if (previous?.isSymbolicLink() || (previous && !previous.isDirectory())) throw n
 if (previous) await rm(stage, { recursive: true });
 await mkdir(stage, { recursive: true });
 await buildGitTools(join(stage, 'git-tools'));
+await buildForegroundApp(join(stage, 'app-observation'));
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 await writeFile(join(stage, 'release-source.json'), JSON.stringify(releaseSource.getReleaseSource(), null, 2));
 await cp(join(root, 'LICENSE'), join(stage, 'LICENSE-AI-PROJECT-HUB.txt'));

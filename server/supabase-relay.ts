@@ -7,6 +7,7 @@ import {
   type RelayConfiguration,
 } from '../shared/devices.js';
 import { RelayError, type RelayClient } from './relay.js';
+import { createAppObservationRelay, type AppObservationRpcOptions } from './app-observation-relay.js';
 import { deviceRoleSchema, governancePolicySchema, deviceStatusPublicationSchema, remoteDeviceStatusSchema, type GovernanceRelay } from '../shared/governance.js';
 import { gitApprovalSchema, gitApprovalSubmissionSchema, gitConsumptionSchema, gitDigestSchema, gitExecutionResultSchema, type GitReviewSummary } from '../shared/git.js';
 
@@ -131,7 +132,7 @@ export function createSupabaseRelay(configuration: RelayConfiguration, options: 
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw invalid();
 
-  async function rpc<T>(name: string, body: Record<string, unknown>, schema: z.ZodType<T, z.ZodTypeDef, unknown>, parent?: AbortSignal): Promise<T> {
+  async function rpc<T>(name: string, body: Record<string, unknown>, schema: z.ZodType<T, z.ZodTypeDef, unknown>, parent?: AbortSignal, appOptions?: AppObservationRpcOptions<T>): Promise<T> {
     if (parent?.aborted) throw new RelayError('aborted', '雲端請求已取消。');
     const controller = new AbortController();
     let timedOut = false;
@@ -152,9 +153,15 @@ export function createSupabaseRelay(configuration: RelayConfiguration, options: 
         });
         if (response.redirected || (response.status >= 300 && response.status < 400)) throw unavailable();
         let data: unknown;
-        try { data = await readJson(response, controller.signal, response.ok ? MAX_RESPONSE_BYTES : 8192); }
+        try { data = await readJson(response, controller.signal, response.ok ? (appOptions?.maxResponseBytes ?? MAX_RESPONSE_BYTES) : 8192); }
         catch { if (!response.ok) throw providerError(response.status, null); throw unavailable(); }
-        if (!response.ok) throw providerError(response.status, data);
+        if (!response.ok) {
+          // Missing v2 governance RPCs still fail closed. Only this optional capability
+          // recognizes absent-function machine codes; never inspect provider messages.
+          if (name === 'hub_app_v1_capability' && appOptions?.absentCapability
+            && z.object({ code: z.enum(['PGRST202', '42883']) }).passthrough().safeParse(data).success) return appOptions.absentCapability();
+          throw providerError(response.status, data);
+        }
         const result = schema.safeParse(data);
         if (!result.success) throw unavailable();
         return result.data;
@@ -206,6 +213,7 @@ export function createSupabaseRelay(configuration: RelayConfiguration, options: 
   };
   return {
     governance,
+    appObservation: createAppObservationRelay(rpc),
     pair(input, signal) {
       const value = parse(pairSchema, input);
       return rpc('hub_pair', { p_attempt_id: value.attemptId, p_device_id: value.deviceId, p_token: value.deviceToken, p_code: value.inviteToken, p_name: value.name }, pairResultSchema.refine(result => result.device.id === value.deviceId), signal);

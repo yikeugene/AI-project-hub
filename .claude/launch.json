@@ -42,6 +42,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--import", "tsx", "scripts/app-observation-preview.ts"],
       "port": 4323
+    },
+    {
+      "name": "Work items isolated preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "scripts/work-items-ui-preview.ts"],
+      "port": 4324
     }
   ]
 }

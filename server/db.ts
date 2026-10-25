@@ -9,6 +9,7 @@ import { appError, workspaceFocusSchema, wrapUpProjectSchema } from './validatio
 import { DEVICE_MIGRATION, MULTI_GROUP_MIGRATION } from './device-schema.js';
 import { GOVERNANCE_MIGRATION } from './governance-schema.js';
 import { APP_OBSERVATION_MIGRATION } from './app-observation-schema.js';
+import { WORK_ITEM_MIGRATION } from './work-item-schema.js';
 import type { CreateProjectInput, UpdateProjectInput, WrapUpProjectInput, CreateTaskInput, UpdateTaskInput } from './validation.js';
 
 type Row = Record<string, string | number | null>;
@@ -40,7 +41,7 @@ export class Store {
     this.db = new DatabaseSync(filename);
     this.db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;');
     const version = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-    if (version > 6) { this.db.close(); throw appError(400, 'database.newer'); }
+    if (version > 7) { this.db.close(); throw appError(400, 'database.newer'); }
     try {
     if (version === 0) this.db.exec(`
       BEGIN;
@@ -79,6 +80,7 @@ export class Store {
       PRAGMA user_version = 5;
     `));
     if (version < 6) this.transaction(() => this.db.exec(APP_OBSERVATION_MIGRATION));
+    if (version < 7) this.transaction(() => this.db.exec(WORK_ITEM_MIGRATION));
     } catch (error) {
       try { this.db.exec('ROLLBACK'); } catch { /* A failed migration may already have rolled back. */ }
       this.db.close(); throw error;

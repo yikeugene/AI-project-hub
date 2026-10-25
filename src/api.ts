@@ -5,6 +5,7 @@ import type { GitApproval, GitAuditEvent, GitDetails, GitDiff, GitDiffInput, Git
 import type { DeviceRole, GovernanceState, StatusSharingPolicy, StatusSharingPreview } from '../shared/governance';
 import type { MarkdownImportApplyInput, MarkdownImportPreview } from '../shared/markdown-import';
 import type { AppObservationPolicy, AppObservationPreview, AppObservationState } from '../shared/app-observation';
+import type { CreateWorkItemInput, WorkCommand, WorkItem, WorkItemDetail, WorkMutation, WorkPreview } from '../shared/work-items';
 
 import { DEFAULT_LOCALE, LocalizedError, translate, type Locale, type MessageParams } from '../shared/i18n';
 import { isErrorCode, translateError } from '../shared/messages';
@@ -65,6 +66,15 @@ export const api = {
   openDesktopApp: (app: DesktopApp) => request<{ ok: true }>(`/desktop-apps/${app}/open`, 'POST', {}),
   open: (id: string, action: LaunchAction) => request<{ ok: true }>(`${projectUrl(id)}/open`, 'POST', { action }),
   settings: (settings: Partial<Settings>) => request<Settings>('/settings', 'PATCH', settings),
+};
+const workItemUrl = (id: string) => `/work-items/${encodeURIComponent(id)}`;
+/** Local-only work-item endpoints; no profile headers, implicit retries or project-memory writes. */
+export const workItemApi = {
+  list: (projectId?: string) => request<{ items: WorkItem[] }>(`/work-items${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  get: (id: string) => request<WorkItemDetail>(workItemUrl(id)),
+  createDraft: (projectId: string, input: CreateWorkItemInput) => request<WorkMutation>(`${projectUrl(projectId)}/work-items`, 'POST', input),
+  apply: (id: string, input: WorkCommand) => request<WorkMutation>(`${workItemUrl(id)}/actions`, 'POST', input),
+  brief: (id: string) => request<WorkPreview>(`${workItemUrl(id)}/brief`),
 };
 export const markdownApi = {
   preview: (text: string) => request<MarkdownImportPreview>('/markdown-import/preview', 'POST', { text }),

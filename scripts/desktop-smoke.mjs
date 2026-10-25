@@ -35,7 +35,7 @@ async function launch(locale = 'en') {
   desktop = await _electron.launch({ executablePath: executable, args: ['--data-dir', dataDir], env, timeout: 45000 });
   const page = await desktop.firstWindow(); page.setDefaultTimeout(20000);
   page.on('pageerror', error => errors.push(error.message));
-  await page.getByRole('heading', { name: locale === 'en' ? 'Development workspace' : '開發工作台', exact: true }).waitFor();
+  await page.getByRole('heading', { name: locale === 'en' ? 'Pick up your work' : '接回手上的工作', exact: true }).waitFor();
   await page.waitForFunction(expected => document.documentElement.lang === expected && !document.querySelector('.language-toggle button')?.disabled, locale);
   // Test-only observation of genuine Tray instances/menus. No production IPC or debug switch.
   await desktop.evaluate(({ Tray }) => {
@@ -197,7 +197,7 @@ try {
   const deviceGuard = await page.evaluate(async () => (await fetch('/api/devices/local', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'must-not-save' }) })).status);
   assert.equal(deviceGuard, 403); checked('Device cloud integration defaults off and device mutations retain the local request-token guard');
   await switchLanguage(page, 'zh-TW');
-  await page.getByRole('heading', { name: '開發工作台', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '接回手上的工作', exact: true }).waitFor();
   assert.equal(await page.title(), 'AI Project Hub — 開發工作台');
   await assertNativeLanguage('zh-TW');
   checked('Saved language toggle switches renderer, metadata, and native menus to Traditional Chinese without restarting');
@@ -242,7 +242,7 @@ try {
   assert.equal(await deviceName.inputValue(), '尚未儲存的設備名稱');
   await deviceName.fill(savedDeviceName);
   checked('Local preferences and device forms are independent, persist names, and both retain navigation draft guards');
-  await page.locator('.main-nav').getByRole('button', { name: '開發工作台', exact: true }).click();
+  await page.locator('.main-nav').getByRole('button', { name: /^專案總覽/ }).click();
 
   // Only native dialog selections are stubbed; production IPC validation and file writes still execute.
   await desktop.evaluate(({ dialog }, path) => { dialog.showOpenDialog = async (_owner, options) => { globalThis.__smokeOpenOptions = options; return { canceled: false, filePaths: [path] }; }; }, projectPath);
@@ -679,7 +679,7 @@ try {
   await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].destroy());
   page = await recoveredWindow;
   page.setDefaultTimeout(20000); page.on('pageerror', error => errors.push(error.message));
-  await page.getByRole('heading', { name: '開發工作台', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '接回手上的工作', exact: true }).waitFor();
   assert.equal(new URL(page.url()).origin, origin);
   assert.equal((await fetch(origin + '/api/workspace')).status, 401);
   assert.equal(await page.evaluate(async () => (await fetch('/api/workspace')).status), 200);

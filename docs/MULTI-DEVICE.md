@@ -79,7 +79,7 @@ SELECT hub_private.designate_initial_admin(
 
 `hub_private.designate_initial_admin(uuid, uuid)` 只接受尚未初始化（epoch 0、沒有有效 admin）的群組；成功後記錄稽核並設 epoch 1，不能作為之後任意升權的公開通道。之後由有效 admin 使用 App 的角色管理；勿授予 `anon`／`authenticated` 私有函式權限。重新配對的新 membership 不繼承舊設備的 admin 身分。
 
-本機資料庫是另一路升級：v0.8.0 的 SQLite schema 為 **v6**（v0.6／v0.7 使用 v5；v0.5 使用 v4；v0.4 使用 v3），新增前景 App 分享的同意／修訂／序號／待撤回 metadata，不保存程式名稱。既有聚焦、收工、群組身分、共享政策、待送工作與 Git journals 保留；歷史群組不會重新啟用。升級前請完全退出並備份整個資料目錄，舊 App 無法開啟 v6，回退須還原相容備份。本機升級不會自動部署雲端；多群組原功能沿用既有 relay，新前景 App 通道須另行套用下方所述遷移。
+本機資料庫是另一路升級：v0.9.0 的 SQLite schema 為 **v7**，新增只在本機使用的小成果與事件歷史，不新增雲端遷移。v0.8.0 的 v6 新增前景 App 分享的同意／修訂／序號／待撤回 metadata，不保存程式名稱（v0.6／v0.7 使用 v5；v0.5 使用 v4；v0.4 使用 v3）。既有聚焦、收工、群組身分、共享政策、待送工作與 Git journals 保留；歷史群組不會重新啟用。升級前請完全退出並備份整個資料目錄，v0.8.0 及更舊 App 無法開啟 v7，回退須還原相容備份。本機升級不會自動部署雲端；多群組原功能沿用既有 relay，既有前景 App 通道仍須另行套用下方所述遷移。
 
 ### 4. 取得公開連線設定
 

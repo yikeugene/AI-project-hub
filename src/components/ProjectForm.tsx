@@ -5,6 +5,7 @@ import { api, type ProjectInput } from '../api';
 import { useAction, useBeforeUnload } from '../hooks';
 import { useLocale, useT } from '../i18n';
 import { shellCatalog } from '../locales/shell';
+import { workItemMessages } from '../locales/work-items';
 import { Button, ConfirmDialog, ErrorNotice, Field, Modal, Notice } from './ui';
 
 export function ProjectForm({ project, categories, onClose, onSaved }: { project?: Project; categories: string[]; onClose: () => void; onSaved: () => Promise<void> }) {
@@ -55,11 +56,11 @@ export function ProjectForm({ project, categories, onClose, onSaved }: { project
 }
 
 export function RemoveProjectDialog({ project: currentProject, onClose, onRemoved }: { project: Project; onClose: () => void; onRemoved: () => Promise<void> }) {
-  const t = useT(shellCatalog);
+  const t = useT(shellCatalog); const w = useT(workItemMessages);
   const [project] = useState(currentProject);
   const action = useAction();
   const [beforeName, afterName] = t('form.removeDescription').split('{name}');
   return <ConfirmDialog title={t('form.removeTitle')} danger confirmLabel={t('form.remove')} busy={action.busy} error={action.error} onClose={onClose} onConfirm={() => { void action.run(async () => { await api.removeProject(project); await onRemoved(); onClose(); }); }}>
-    <p>{beforeName}<strong>{project.name}</strong>{afterName}</p><Notice>{t('form.removeSafety')}</Notice><p className="path-text">{project.path}</p>
+    <p>{beforeName}<strong>{project.name}</strong>{afterName}</p><Notice warning>{w('removeWarning')}</Notice><Notice>{t('form.removeSafety')}</Notice><p className="path-text">{project.path}</p>
   </ConfirmDialog>;
 }

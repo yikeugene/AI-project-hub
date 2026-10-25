@@ -82,13 +82,13 @@ describe('bilingual UI catalogs', () => {
 describe('English default and Traditional Chinese rendering', () => {
   it('renders the shell and accessible pressed language controls in both languages before loading', () => {
     const english = render(createElement(App));
-    expect(english).toContain('<h1>Development workspace</h1>');
+    expect(english).toContain('<h1>Pick up your work</h1>');
     expect(english).toContain('aria-label="Interface language"');
     expect(english).toMatch(/lang="en" aria-pressed="true" disabled=""/);
     expect(english).toMatch(/lang="zh-TW" aria-pressed="false" disabled=""/);
     expect(english).toContain('Skip to main content');
     const chinese = render(createElement(App), 'zh-TW');
-    expect(chinese).toContain('<h1>開發工作台</h1>');
+    expect(chinese).toContain('<h1>接回手上的工作</h1>');
     expect(chinese).toContain('aria-label="介面語言"');
     expect(chinese).toMatch(/lang="en" aria-pressed="false" disabled=""/);
     expect(chinese).toMatch(/lang="zh-TW" aria-pressed="true" disabled=""/);

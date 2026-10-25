@@ -191,7 +191,7 @@ async function launch(name, relayOrigin) {
   const evaluatePage = peer.page.evaluate.bind(peer.page);
   peer.page.evaluate = (...args) => bounded(evaluatePage(...args), `${name} renderer/API stage exceeded its deadline.`, 60000);
   peer.page.on('pageerror', error => rendererErrors.push({ peer: name, message: error.message }));
-  await peer.page.getByRole('heading', { name: 'Development workspace', exact: true }).waitFor();
+  await peer.page.getByRole('heading', { name: 'Pick up your work', exact: true }).waitFor();
   await peer.page.waitForFunction(() => document.documentElement.lang === 'en' && !document.querySelector('.language-toggle button')?.disabled);
   const actualPreferences = await desktop.evaluate(({ BrowserWindow }) => {
     const prefs = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences();
@@ -314,7 +314,7 @@ try {
   checked('Explicit saved consent plus a controlled unlock invokes the exact packaged bounded source; fresh name/time reaches an off-policy receiver through real anon-role SQL with no title/PID/path fields');
 
   await receiver.page.reload();
-  await receiver.page.getByRole('heading', { name: 'Development workspace', exact: true }).waitFor();
+  await receiver.page.getByRole('heading', { name: 'Pick up your work', exact: true }).waitFor();
   await receiver.page.locator('.device-nav-item').filter({ hasText: 'Packaged app sender' }).click();
   const remoteApp = receiver.page.locator('.remote-app-observation');
   await remoteApp.getByText('Visual Studio Code', { exact: true }).waitFor();

@@ -2,23 +2,26 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
-**Download v0.8.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe)
+**Download v0.9.0 for Windows x64:** [Installer](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-Setup-x64.exe) · [Portable — no installation](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-portable-x64.exe)
 
 A local-first project workbench for **Windows x64**. Keep projects, tasks, checkpoints, Git observations, and individually approved Git actions in one place, then carry the context into Claude Desktop or ChatGPT Desktop—on your terms.
 
-**New in v0.8.0:** Optional current-app sharing reports the last observed Windows foreground application through a separate, default-off per-group setting. Includes the native helper, explicit consent and withdrawal controls. See the [release notes](docs/RELEASE-0.8.0.md).
+**New in v0.9.0:** Plan a small outcome, copy its brief, explicitly record the handoff, and return to verify it before completion. The new home screen brings actionable and returning work together. See the [release notes](docs/RELEASE-0.9.0.md) and [work-item guide](docs/WORK-ITEMS.md).
 
 **Introduced in v0.4.0:** approved Git operations, administrator roles, optional device status, close-to-tray behavior, and a configured GitHub update source. Git approvals require you to upgrade your own relay using the documented v2 migration and designate an administrator.
 
 **The desktop app includes its runtime. End users do not need Node.js, a browser, or an open terminal.** Local features need no Hub account, API key, or cloud database. Hub does not read private chat histories, automatically send prompts, or execute AI replies.
 
-**Upgrade notice:** v0.8.0 migrates local SQLite to **schema v6**. Quit Hub completely and back up the full data directory before upgrading. Earlier apps cannot open v6 databases; reverting requires a compatible pre-upgrade backup. The optional current-app channel also requires a separate manual cloud migration.
+**Upgrade notice:** v0.9.0 migrates local SQLite to **schema v7**, adding local work items and their event history. Quit Hub completely and back up the full data directory before upgrading. v0.8.0 and earlier cannot open v7 databases; reverting requires a compatible pre-upgrade backup. This release adds no cloud migration; the existing optional current-app channel retains its separate manual setup.
 
 **Markdown import:** Exported summaries can update only the matching local project’s nonblank memory fields and next action after a diff preview and confirmation. Missing/blank fields preserve local content; no AI API or new filesystem permission is required. See the [guide](docs/MARKDOWN-IMPORT.md).
+
+**Manual work items:** Copying a brief does not send it or mark it handed off. Both checks must pass for the current version before you explicitly mark it done; partner results are recorded locally with their reported source. Work items stay local and require no AI connection or OAuth.
 
 ## What you can do
 
 - **Find your projects:** preview a folder scan and choose which projects to add, without moving files or running project code.
+- **Finish a small outcome:** define a work item, copy its brief, record handoff, and return to verify the current version with both reviewers before explicitly completing it.
 - **Pick up where you left off:** keep a next action, priorities, tasks, technical decisions, and project memory together.
 - **See Git facts:** inspect branches, commits, working-tree snapshots, and file diffs without a background scan modifying your repository.
 - **Request a Git action:** preview a supported operation, obtain a designated administrator's approval, then separately confirm execution on the originating computer. No remote auto-execution or blanket approval.
@@ -28,16 +31,16 @@ A local-first project workbench for **Windows x64**. Keep projects, tasks, check
 
 ## Get the Windows app
 
-Download **v0.8.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
+Download **v0.9.0** from the links below or visit [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest). The app includes its runtime; no Node.js installation or source-code setup is needed.
 
 Run the installer to install for your Windows user, or download and double-click the portable executable. GitHub's **Source code (zip)** and **Source code (tar.gz)** archives are for developers.
 
 | Download | Use |
 | --- | --- |
-| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
-| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe) | Run directly without an installer. |
+| [Windows x64 installer (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-Setup-x64.exe) | Install for your Windows user, with desktop and Start menu shortcuts. |
+| [Windows x64 portable (.exe)](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-portable-x64.exe) | Run directly without an installer. |
 
-[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.8.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/SHA256SUMS.txt)
+[Release notes](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.9.0) · [SHA-256 checksums](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/SHA256SUMS.txt)
 
 Version 0.4.0 configures the official GitHub update source. Users upgrading from 0.3.0 must download this release manually because that version has no configured updater. Portable means no installation; it does **not** mean your data is stored inside or beside the executable.
 
@@ -53,7 +56,7 @@ Git is needed for Git views and approved Git operations; projects, memory, tasks
 4. **Save a checkpoint.** Use project memory for the current state, decisions, and known issues.
 5. **Continue work.** The workbench combines recorded context with Git facts and explainable suggestions. Commit counts are not completion percentages.
 
-Your normal workspace is not seeded with demo projects. **Version 0.8.0 uses local SQLite schema version 6.** Back up before upgrading: earlier apps cannot open a schema-v6 database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
+Your normal workspace is not seeded with demo projects. **Version 0.9.0 uses local SQLite schema version 7.** Back up before upgrading: v0.8.0 and earlier cannot open a schema-v7 database, and there is no automatic downgrade. To return to an older app, restore a compatible pre-upgrade backup into a separate data directory.
 
 ## AI handoffs: copy, paste, review
 
@@ -192,7 +195,7 @@ npm run test:desktop
 
 `npm run test:ui` **only creates UI fixtures**, including sample repositories and `.local/verification/hub.sqlite`. It is not a UI test runner and does not launch or verify the app.
 
-The v0.8.0 release passed all 770 tests across 43 files, 40 packaged desktop checks, 9 packaged Git checks, 7 packaged app-sharing checks, 5 portable lifecycle groups, and the owned-window native test with 2,194 Unicode-name cases. See the [v0.8.0 release verification](docs/RELEASE-0.8.0.md#verification--驗證) for the full test-suite result and precise evidence boundaries. Live Supabase, two physical desktops, physical lock/suspend/wake, NSIS installation/uninstallation and end-to-end update installation remain outside this validation. Rerun checks on your own builds.
+The v0.9.0 release passed all 810 tests across 47 files, 40 packaged desktop checks, 9 packaged Git checks, 7 packaged app-sharing checks, 6 packaged work-item checks, 5 portable lifecycle groups, and the owned-window native test with 2,194 Unicode-name cases. See the [v0.9.0 release verification](docs/RELEASE-0.9.0.md#verification--驗證) for results and evidence boundaries. Live Supabase, two physical desktops, physical lock/suspend/wake, NSIS installation/uninstallation, end-to-end update installation and real-user work-item trials remain outside this validation. Rerun checks on your own builds.
 
 ### Optional web development mode
 

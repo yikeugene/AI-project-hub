@@ -24,7 +24,7 @@ describe('SQLite persistence and edit protection', () => {
     expect(store.db.prepare('SELECT value FROM settings WHERE id=1').get()!.value).toBe(json);
     expect(store.updateSettings({ locale: 'zh-TW' })).toEqual({ ...saved, locale: 'zh-TW' });
     expect(store.updateSettings({ staleDays: 21 })).toEqual({ ...saved, staleDays: 21, locale: 'zh-TW' });
-    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(6);
+    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(7);
   });
   it('persists projects, tasks, memory and settings across restarts', () => {
     const dir = mkdtempSync(join(tmpdir(), 'hub-db-')); dirs.push(dir);
@@ -39,7 +39,7 @@ describe('SQLite persistence and edit protection', () => {
     expect(store.getProject(p.id).memory.status).toBe('資料層完成');
     expect(store.getTask(t.id).priority).toBe('high');
     expect(store.getSettings()).toEqual({ scanRoots: ['/sample'], staleDays: 21, refreshSeconds: 120, locale: 'zh-TW' });
-    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(6);
+    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(7);
   });
   it('rejects stale project, memory, task, and removal revisions', () => {
     const s = memoryStore(), p = s.createProject({ path: '/x', name: 'x' });

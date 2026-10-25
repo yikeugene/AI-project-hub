@@ -21,6 +21,7 @@ import type { GovernanceService } from './governance.js';
 import { MAX_MARKDOWN_BYTES } from '../shared/markdown-import.js';
 import { markdownImportRouter } from './markdown-import.js';
 import { appObservationRouter, type AppObservationService } from './app-observation.js';
+import { workItemsRouter } from './work-items-router.js';
 
 export interface AppOptions {
   store: Store; dataDir: string;
@@ -220,6 +221,7 @@ export function createApp(options: AppOptions) {
     catch (error) { console.warn(coreTranslator(settings.locale)('runtime.settingsCallback'), error); }
     res.json(settings);
   });
+  app.use('/api', workItemsRouter(store));
   app.use('/api/markdown-import', markdownImportRouter(store, options.deviceService));
   if (options.deviceService) app.use('/api', deviceRouter(options.deviceService));
   if (options.appObservationService) app.use('/api', appObservationRouter(options.appObservationService));

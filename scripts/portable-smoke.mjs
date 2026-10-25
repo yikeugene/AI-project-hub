@@ -67,7 +67,7 @@ async function launch(locale) {
   page.evaluate = (...args) => bounded(evaluatePage(...args), 'Portable renderer/protocol request did not answer within 15 seconds.');
   page.setDefaultTimeout(30000);
   page.on('pageerror', error => errors.push(error.message));
-  await page.getByRole('heading', { name: locale === 'en' ? 'Development workspace' : '開發工作台', exact: true }).waitFor();
+  await page.getByRole('heading', { name: locale === 'en' ? 'Pick up your work' : '接回手上的工作', exact: true }).waitFor();
   await page.waitForFunction(expected => document.documentElement.lang === expected && !document.querySelector('.language-toggle button')?.disabled, locale);
   return page;
 }
@@ -185,7 +185,7 @@ async function run() {
   assert.equal(await roots.inputValue(), 'C:\\Portable Unsaved Draft');
   checked('Native X hides without discarding the localized draft/backend; second portable instance restores it');
   await roots.fill(originalRoots);
-  await page.locator('.main-nav').getByRole('button', { name: '開發工作台', exact: true }).click();
+  await page.locator('.main-nav').getByRole('button', { name: '接回手上的工作', exact: true }).click();
   await page.screenshot({ path: join(work, 'portable-window-zh-TW.png') });
   await close(page);
   checked('Genuine native File/Quit exits the portable wrapper and releases the internal listener');

@@ -15,7 +15,7 @@ const governanceTables = ['git_audit', 'git_operations', 'git_approval_inbox', '
 const deviceTables = ['device_outbox', 'device_messages', 'remote_snapshots', 'project_publications', 'project_shares', 'paired_devices', 'relay_profiles', 'device_installation'];
 function legacyVersion(file: string, version: 1 | 2 | 3 | 4 | 5) {
   const db = new DatabaseSync(file);
-  db.exec('DROP TABLE app_observation_profiles;');
+  db.exec('DROP TABLE work_item_events; DROP TABLE work_items; DROP TABLE app_observation_profiles;');
   if (version < 5) db.exec('DROP TABLE workspace_focus; ALTER TABLE projects DROP COLUMN checkpoint_at;');
   const tables = version === 1 ? [...governanceTables, ...deviceTables] : version === 2 ? governanceTables : [];
   if (version === 2 || version === 3) db.exec('ALTER TABLE relay_profiles DROP COLUMN attached; ALTER TABLE relay_profiles DROP COLUMN label; ALTER TABLE project_publications DROP COLUMN published_at;');
@@ -23,16 +23,16 @@ function legacyVersion(file: string, version: 1 | 2 | 3 | 4 | 5) {
 }
 
 describe('additive device storage migration', () => {
-  it.each([1, 2, 3, 4, 5] as const)('creates v6 and upgrades v%i without changing local records', version => {
+  it.each([1, 2, 3, 4, 5] as const)('creates v7 and upgrades v%i without changing local records', version => {
     const file = filename(); let store = new Store(file);
     const project = store.createProject({ path: '/do-not-change', name: 'Keep existing project' });
     const task = store.createTask(project.id, { title: 'Keep existing task' });
     store.updateSettings({ staleDays: 42 });
-    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(6); store.close();
+    expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(7); store.close();
     legacyVersion(file, version); store = new Store(file);
     try {
       expect(store.getProject(project.id)).toEqual(project); expect(store.getTask(task.id)).toEqual(task);
-      expect(store.getSettings().staleDays).toBe(42); expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(6);
+      expect(store.getSettings().staleDays).toBe(42); expect(store.db.prepare('PRAGMA user_version').get()!.user_version).toBe(7);
       expect(store.getProject(project.id).checkpointAt).toBeNull();
       expect(store.getFocus()).toEqual({ projectIds: [], revision: 1 });
       expect(store.db.prepare('SELECT * FROM workspace_focus').all()).toEqual([{ id: 1, project_ids_json: '[]', revision: 1 }]);
@@ -131,9 +131,9 @@ describe('additive device storage migration', () => {
     finally { recovered.close(); }
   });
   it('rejects unknown newer versions and releases the connection', () => {
-    const file = filename(), db = new DatabaseSync(file); db.exec('PRAGMA user_version=7'); db.close();
+    const file = filename(), db = new DatabaseSync(file); db.exec('PRAGMA user_version=8'); db.close();
     expect(() => new Store(file)).toThrow(/version is newer/);
-    const reopened = new DatabaseSync(file); expect(reopened.prepare('PRAGMA user_version').get()!.user_version).toBe(7); reopened.close();
+    const reopened = new DatabaseSync(file); expect(reopened.prepare('PRAGMA user_version').get()!.user_version).toBe(8); reopened.close();
   });
 });
 

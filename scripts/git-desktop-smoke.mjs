@@ -105,7 +105,7 @@ async function launch(name, relayOrigin) {
   const evaluatePage = peer.page.evaluate.bind(peer.page);
   peer.page.evaluate = (...args) => bounded(evaluatePage(...args), `${name} renderer/API stage exceeded 60 seconds.`, 60000);
   peer.page.on('pageerror', error => rendererErrors.push({ peer: name, message: error.message }));
-  await peer.page.getByRole('heading', { name: 'Development workspace', exact: true }).waitFor();
+  await peer.page.getByRole('heading', { name: 'Pick up your work', exact: true }).waitFor();
   await peer.page.waitForFunction(() => document.documentElement.lang === 'en' && !document.querySelector('.language-toggle button')?.disabled);
   const workspace = await peer.page.evaluate(async () => (await fetch('/api/workspace')).json());
   peer.csrfToken = workspace.csrfToken; peer.origin = new URL(peer.page.url()).origin;
@@ -305,6 +305,7 @@ try {
   checked('Actual packaged Git execution selects resources/git-tools/git-host.exe; the shipped pre-push guard accepts the exact contract and rejects old-OID drift without Node on PATH');
 
   await origin.page.reload();
+  await origin.page.locator('.main-nav').getByRole('button', { name: /^Project overview/ }).click();
   await origin.page.getByRole('button', { name: 'Open project: Native approved Git', exact: true }).click();
   await origin.page.locator('.detail-tabs').getByRole('button', { name: 'Git status', exact: true }).click();
   await origin.page.getByRole('heading', { name: 'Git status and approved actions', exact: true }).waitFor();

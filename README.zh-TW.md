@@ -2,23 +2,26 @@
 
 [English](README.md) · **繁體中文**
 
-**下載 Windows x64 v0.8.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe)
+**下載 Windows x64 v0.9.0：** [安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-Setup-x64.exe) · [免安裝版](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-portable-x64.exe)
 
 以本機資料為優先的 **Windows x64** 專案工作台。集中管理專案、任務、checkpoint、Git 觀測與逐次審批的 Git 操作，再由你決定何時把脈絡交給 Claude Desktop 或 ChatGPT Desktop。
 
-**v0.8.0 新增：** 獨立、預設關閉的每群組前景 App 分享，顯示 Windows 最後回報使用中的程式，包含原生 helper、明確同意與撤回控制。詳見[版本說明](docs/RELEASE-0.8.0.md)。
+**v0.9.0 新增：** 人工「小成果 → 待接回 → 雙方驗證」流程。先定義目標、複製任務說明並明確記錄交出，回來驗證後再完成；新首頁集中顯示可推進與待接回工作。詳見[版本說明](docs/RELEASE-0.9.0.md)及[小成果使用說明](docs/WORK-ITEMS.md)。
 
 **v0.4.0 引入：** Git 審批操作、管理員角色、可選裝置狀態、關閉縮至系統匣，以及正式 GitHub 更新來源。Git 審批需依文件套用 v2 relay 遷移並指定管理員。
 
 **桌面版內含執行環境，一般使用者不需要另外安裝 Node.js、開啟瀏覽器或保留終端。** 本機功能不需要 Hub 帳號、API key 或雲端資料庫。Hub 不讀取私人聊天紀錄、不自動傳送提示詞，也不執行 AI 回覆。
 
-**升級注意：** v0.8.0 將本機 SQLite 升級至 **schema v6**。升級前請完全退出 Hub 並備份整個資料目錄；舊版無法開啟 v6 資料庫，回退須還原相容備份。可選的前景 App 分享另外需要手動雲端遷移。
+**升級注意：** v0.9.0 將本機 SQLite 升級至 **schema v7**，新增本機小成果與事件歷史。升級前請完全退出 Hub 並備份整個資料目錄；v0.8.0 及更舊版無法開啟 v7 資料庫，回退須還原相容備份。本版沒有新增雲端遷移；既有可選前景 App 分享仍須依其文件手動設定。
 
 **Markdown 匯入：** 匯出摘要經差異預覽與明確確認後，只更新對應本機專案中非空的記憶欄位及下一步；缺少／空白欄位保留原值，不需要 AI API 或新增檔案權限。詳見 [Markdown 匯入與 Prompt 說明](docs/MARKDOWN-IMPORT.md)。
+
+**人工小成果流程：** 複製任務說明不會傳送或標記交出；目前版本的雙方檢查都通過後，仍須明確按完成。搭檔回報由本人記錄來源，不是系統身分簽核。資料只留在本機，不需要 AI 連線或 OAuth。
 
 ## 可以做什麼
 
 - **找到專案：** 預覽資料夾掃描結果，自行選擇加入哪些專案，不搬動檔案、不執行專案程式碼。
+- **完成小成果：** 定義工作範圍、複製任務說明、記錄交出，回來針對目前版本進行雙方驗證，再明確完成。
 - **接續工作：** 集中保存下一步、優先級、任務、技術決策與專案記憶。
 - **查看 Git 事實：** 檢視分支、commit、工作目錄快照與檔案差異；背景掃描不會修改儲存庫。
 - **申請 Git 操作：** 預覽支援的操作，取得指定管理員批准，再由提出申請的原電腦另行確認執行；沒有遠端自動執行或永久通用批准。
@@ -28,16 +31,16 @@
 
 ## 取得 Windows 桌面版
 
-透過下方連結直接下載 **v0.8.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
+透過下方連結直接下載 **v0.9.0**，或前往 [GitHub Releases](https://github.com/yikeugene/AI-project-hub/releases/latest)。桌面版內含執行環境，不需要安裝 Node.js 或設定原始碼。
 
 執行安裝版即可安裝到目前 Windows 使用者；選擇免安裝版則下載後雙擊執行。GitHub 的 **Source code (zip)** 和 **Source code (tar.gz)** 是提供給開發者的原始碼壓縮檔。
 
 | 下載 | 用途 |
 | --- | --- |
-| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
-| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/AI-Project-Hub-0.8.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
+| [Windows x64 安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-Setup-x64.exe) | 安裝到目前 Windows 使用者，可建立桌面與開始功能表捷徑。 |
+| [Windows x64 免安裝版（.exe）](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/AI-Project-Hub-0.9.0-portable-x64.exe) | 不需安裝，下載後直接執行。 |
 
-[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.8.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.8.0/SHA256SUMS.txt)
+[版本說明](https://github.com/yikeugene/AI-project-hub/releases/tag/v0.9.0) · [SHA-256 校驗檔](https://github.com/yikeugene/AI-project-hub/releases/download/v0.9.0/SHA256SUMS.txt)
 
 v0.4.0 已設定正式 GitHub 更新來源。從 v0.3.0 升級仍需手動下載本版，因舊版未設定更新來源。免安裝**不代表**資料存放在執行檔內或執行檔旁邊。
 
@@ -53,7 +56,7 @@ Git 檢視與經批准的 Git 操作需要 Git；沒有 Git 仍可使用專案�
 4. **儲存 checkpoint。** 在專案記憶記錄目前進度、決策與已知問題。
 5. **繼續工作。** 工作台結合已記錄脈絡、Git 事實與可解釋的建議；commit 數量不是完成百分比。
 
-正式工作區不會預填示範專案。**v0.8.0 使用本機 SQLite schema 第 6 版。** 升級前請備份；舊版程式無法開啟 v6 資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
+正式工作區不會預填示範專案。**v0.9.0 使用本機 SQLite schema 第 7 版。** 升級前請備份；v0.8.0 及更舊版無法開啟 v7 資料庫，也沒有自動降版。若須退回舊版，請在另一資料目錄還原相容的升級前備份。
 
 ## AI 交接：複製、貼上、審閱
 
@@ -192,7 +195,7 @@ npm run test:desktop
 
 `npm run test:ui` **只建立 UI fixtures**，包括範例儲存庫及 `.local/verification/hub.sqlite`。它不是 UI 測試執行器，也不會啟動或驗證 App。
 
-v0.8.0 通過 43 個測試檔／770 個案例、40 項打包桌面檢查、9 項打包 Git 檢查、7 項新分享流程檢查、5 組免安裝檢查，以及原生受控視窗與 2,194 個 Unicode 名稱案例。完整測試結果與各層證據界線見 [v0.8.0 本版驗證](docs/RELEASE-0.8.0.md#verification--驗證)。尚未部署真實 Supabase，亦未驗證兩台實體電腦、實體鎖屏／睡眠／喚醒、NSIS 安裝／移除或完整更新安裝。自行建置仍須重新驗證。
+v0.9.0 通過 47 個測試檔／810 個案例、40 項打包桌面檢查、9 項打包 Git 檢查、7 項分享流程檢查、6 項小成果檢查、5 組免安裝檢查，以及原生受控視窗與 2,194 個 Unicode 名稱案例。完整結果與各層證據界線見 [v0.9.0 本版驗證](docs/RELEASE-0.9.0.md#verification--驗證)。尚未部署真實 Supabase，亦未驗證兩台實體電腦、實體鎖屏／睡眠／喚醒、NSIS 安裝／移除、完整更新安裝或真實小成果使用者試用。自行建置仍須重新驗證。
 
 ### 可選的 web 開發模式
 
